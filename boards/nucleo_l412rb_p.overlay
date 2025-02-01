@@ -1,0 +1,79 @@
+/ {
+    aliases {
+        accel0 = &lis2dh12;
+    };
+
+    chosen {
+        zephyr,code-partition = &slot0_partition;
+    };
+    
+};
+
+&pinctrl {
+    i2c1_pins: i2c1_pins {
+        pinmux = <STM32_PINMUX('C', 0, AF4)>;
+        pinmux = <STM32_PINMUX('C', 1, AF4)>;
+    };
+
+    usb_pins: usb_pins {
+        pinmux = <STM32_PINMUX('A', 11, AF10)>;
+        pinmux = <STM32_PINMUX('A', 12, AF10)>;
+    };
+};
+
+
+&i2c1 {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_FAST>;
+    pinctrl-0 = <&i2c1_pins>;
+    pinctrl-names = "default";
+
+    lis2dh12: lis2dh12@19 {
+        compatible = "st,lis2dh";
+        reg = <0x19>;
+        status = "okay";
+        irq-gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;
+    };
+};
+
+&usb {
+    status = "okay";
+    pinctrl-0 = <&usb_pins>;
+    pinctrl-names = "default";
+
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};
+
+&flash0 {
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        boot_partition: partition@0 {
+            label = "mcuboot";
+            reg = <0x0 0xc000>;
+        };
+
+        slot0_partition: partition@c000 {
+            label = "image-0";
+            reg = <0xc000 0x32000>;
+        };
+
+        slot1_partition: partition@3e000 {
+            label = "image-1";
+            reg = <0x3e000 0x32000>;
+        };
+
+        scratch_partition: partition@70000 {
+            label = "image-scratch";
+            reg = <0x70000 0x10000>;
+        };
+    };
+};
+
+&gpiob {
+    status = "okay";
+};

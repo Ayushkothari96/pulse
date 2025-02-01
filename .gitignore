@@ -1,0 +1,12 @@
+# Ignore build files
+/build/
+out/
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+*.log
+*.tmp
+*.bak
+*.swp

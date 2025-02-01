@@ -1,0 +1,16 @@
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: main
+      import: true
+    - name: mcuboot
+      remote: zephyrproject-rtos
+      revision: main
+      path: bootloader/mcuboot
+    - name: engine-analyser
+      url: .
+      path: engine-analyser
