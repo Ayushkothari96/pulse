@@ -4,7 +4,9 @@
     };
 
     chosen {
-        zephyr,code-partition = &slot0_partition;
+        zephyr,console = &cdc_acm_uart0;
+        /* Optional: also route the shell to USB if desired */
+        zephyr,shell-uart = &cdc_acm_uart0;
     };
     
 };
@@ -13,11 +15,6 @@
     i2c1_pins: i2c1_pins {
         pinmux = <STM32_PINMUX('C', 0, AF4)>;
         pinmux = <STM32_PINMUX('C', 1, AF4)>;
-    };
-
-    usb_pins: usb_pins {
-        pinmux = <STM32_PINMUX('A', 11, AF10)>;
-        pinmux = <STM32_PINMUX('A', 12, AF10)>;
     };
 };
 
@@ -36,42 +33,23 @@
     };
 };
 
+/* Enable the USB controller on the STM32L412 */
 &usb {
     status = "okay";
-    pinctrl-0 = <&usb_pins>;
+    pinctrl-0 = < &usb_dm_pa11 &usb_dp_pa12 >;
     pinctrl-names = "default";
 
+    /* Declare a USB CDC ACM node for logs/console */
     cdc_acm_uart0: cdc_acm_uart0 {
         compatible = "zephyr,cdc-acm-uart";
+        label = "CDC_ACM_0";
+        /* Some boards require "status = okay;" but typically it's implied */
     };
 };
 
-&flash0 {
-    partitions {
-        compatible = "fixed-partitions";
-        #address-cells = <1>;
-        #size-cells = <1>;
-
-        boot_partition: partition@0 {
-            label = "mcuboot";
-            reg = <0x0 0xc000>;
-        };
-
-        slot0_partition: partition@c000 {
-            label = "image-0";
-            reg = <0xc000 0x32000>;
-        };
-
-        slot1_partition: partition@3e000 {
-            label = "image-1";
-            reg = <0x3e000 0x32000>;
-        };
-
-        scratch_partition: partition@70000 {
-            label = "image-scratch";
-            reg = <0x70000 0x10000>;
-        };
-    };
+/* Enable the HSI48 clock that USB FS needs */
+&clk_hsi48 {
+    status = "okay";
 };
 
 &gpiob {
