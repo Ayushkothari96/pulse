@@ -120,31 +120,8 @@ void main(void)
         .sample_rate_hz = 100,
         .data_ready_cb = data_ready_handler
     };
-    const struct device *led_dev;
     int ret;
-    led_dev = device_get_binding(LED_PORT);
-    if (led_dev == NULL) {
-        LOG_ERR("Failed to bind to LED device");
-        return;
-    }
 
-ret = gpio_pin_configure(led_dev, LED_PIN, GPIO_OUTPUT_LOW);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure LED pin");
-        return;
-    }
-
-    // Blink LED for 5 seconds
-    for (int i = 0; i < 100; i++) {
-        gpio_pin_toggle(led_dev, LED_PIN);
-        k_sleep(K_MSEC(500));
-    }
-
-     ret = usb_enable(NULL);
-    if (ret != 0) {
-        LOG_ERR("Failed to enable USB");
-        return;
-    }
 
     if (accelerometer_init(&config) != 0) {
         LOG_ERR("Failed to initialize accelerometer");
