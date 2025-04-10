@@ -11,25 +11,18 @@
     
 };
 
-&pinctrl {
-    i2c1_pins: i2c1_pins {
-        pinmux = <STM32_PINMUX('C', 0, AF4)>;
-        pinmux = <STM32_PINMUX('C', 1, AF4)>;
-    };
-};
 
-
-&i2c1 {
+&i2c3 { 
     status = "okay";
     clock-frequency = <I2C_BITRATE_FAST>;
-    pinctrl-0 = <&i2c1_pins>;
+    pinctrl-0 = <&i2c3_scl_pc0 &i2c3_sda_pc1>;  // PC0 and PC1
     pinctrl-names = "default";
 
-    lis2dh12: lis2dh12@19 {
-        compatible = "st,lis2dh";
-        reg = <0x19>;
+    lis2dh12: lis2dh12@18 {
+        compatible = "st,lis2dh12", "st,lis2dh";
+        reg = <0x18>;
         status = "okay";
-        irq-gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;
+        /*irq-gpios = <&gpioa 10 GPIO_ACTIVE_HIGH>;*/
     };
 };
 
