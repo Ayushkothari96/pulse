@@ -24,4 +24,6 @@ target_include_directories(app PRIVATE
 target_sources(app PRIVATE 
     src/main.c
     src/accelerometer.c
+    src/moving_average.c
+    src/buzzer.c
 )

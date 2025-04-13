@@ -1,0 +1,20 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.generator": "Ninja",
+    "C_Cpp.default.browse.path": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/include"
+    ],
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.errorSquiggles": "enabled",
+    "files.associations": {
+        "*.h": "c"
+    },
+    "cmake.configureEnvironment": {
+        "ZEPHYR_BASE": "${env:ZEPHYR_BASE}",
+        "ZEPHYR_SDK_INSTALL_DIR": "${env:ZEPHYR_SDK_INSTALL_DIR}"
+    },
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.clang_format_style": "file",
+    "editor.formatOnSave": true
+}

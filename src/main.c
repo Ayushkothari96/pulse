@@ -3,6 +3,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/gpio.h>
 #include "accelerometer.h"
+#include "moving_average.h"
 #include "NanoEdgeAI.h"
 
 
@@ -14,6 +15,8 @@ LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 #define LED_PORT "GPIOB"  // Make sure the label is correct
 #define LED_PIN 4         // Ensure this pin exists on your board
 
+#define BUZZER_WORKING_FREQ (2700u)
+#define BUZZER_STOP_FREQ (0u)
 
 enum ml_state {
     ML_STATE_INIT,
@@ -29,10 +32,12 @@ enum ml_events {
     EVT_STOP = 0x8
 };
 
-static float ml_buffer[DATA_INPUT_USER];
+static struct accel_sample *ml_buffer;
 static struct k_event ml_event;
 static struct k_mutex ml_mutex;
 static enum ml_state current_state = ML_STATE_INIT;
+static struct moving_average similarity_ma;
+
 
 void ml_process_data(struct accel_data *buffer, size_t size);
 enum ml_state ml_get_state(void);
@@ -61,11 +66,10 @@ static void state_machine_step(uint32_t events)
         case ML_STATE_TRAINING:
             if (events & EVT_DATA_READY) {
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                if (trainigIteration < LEARNING_ITERATIONS) {
-                    neai_anomalydetection_learn(ml_buffer);
-                    trainigIteration++;
-                    LOG_INF("Training iteration %d", trainigIteration);
-                } else {
+                neai_anomalydetection_learn((float*)ml_buffer);
+                trainigIteration++;
+                LOG_INF("Training iteration %d", trainigIteration);
+                if (trainigIteration >= LEARNING_ITERATIONS) {
                     current_state = ML_STATE_INFERENCING;
                     LOG_INF("Training complete, entering inferencing");
                 }
@@ -75,12 +79,22 @@ static void state_machine_step(uint32_t events)
 
         case ML_STATE_INFERENCING:
             if (events & EVT_DATA_READY) {
+                static uint32_t inference_count = 0;
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                error_code = neai_anomalydetection_detect(ml_buffer, &similarity);
+                error_code = neai_anomalydetection_detect((float*)ml_buffer, &similarity);
                 if (error_code != NEAI_OK) {
                     LOG_ERR("Error in inferencing, error code: %d", error_code);
                 } else {
-                    LOG_INF("Similarity: %d", similarity);
+                    float avg_similarity = moving_average_update(&similarity_ma, similarity);
+                    // LOG_INF("Inference #%u, Similarity: %d, Moving Average: %.2f", 
+                    //     ++inference_count, similarity, avg_similarity);
+
+                    if (avg_similarity < 80.0f) {
+                        LOG_INF("Anomaly detected, similarity: %.2f", avg_similarity);
+                       // buzzer_set_frequency(BUZZER_WORKING_FREQ);
+                    } else {
+                        //buzzer_set_frequency(BUZZER_STOP_FREQ);
+                    }
                 }
                 k_mutex_unlock(&ml_mutex);
             }
@@ -100,15 +114,34 @@ static void state_machine_step(uint32_t events)
 
 static void data_ready_handler(const struct accel_data *buffer)
 {
+    static uint32_t callback_count = 0;
+    LOG_INF("Data ready callback called #%u", ++callback_count);
     k_mutex_lock(&ml_mutex, K_FOREVER);
-    // Copy data to ml_buffer
-    for(uint16_t i = 0; i < DATA_INPUT_USER/3; i++) {
-        ml_buffer[i*3] = buffer->x[i];
-        ml_buffer[i*3 + 1] = buffer->y[i];
-        ml_buffer[i*3 + 2] = buffer->z[i];
-    }
+    ml_buffer = (struct accel_sample*)buffer;
     k_event_post(&ml_event, EVT_DATA_READY);
     k_mutex_unlock(&ml_mutex);
+}
+
+#define LED0_NODE DT_ALIAS(led0)
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+
+static void led_init(void)
+{
+    int ret;
+
+    if (!gpio_is_ready_dt(&led)) {
+        LOG_ERR("GPIO device not ready, check your devicetree");
+        return;
+    }
+
+    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    if (ret < 0) {
+        LOG_ERR("Error %d: failed to configure LED pin\n", ret);
+        return;
+    }
+    gpio_pin_set_dt(&led, 1);
+
+    LOG_INF("Init done");
 }
 
 void main(void)
@@ -121,7 +154,13 @@ void main(void)
         .data_ready_cb = data_ready_handler
     };
     int ret;
+    
+    led_init();
 
+    if (buzzer_init() != 0) {
+        LOG_ERR("Failed to initialize buzzer");
+        return;
+    }
 
     if (accelerometer_init(&config) != 0) {
         LOG_ERR("Failed to initialize accelerometer");
@@ -131,11 +170,27 @@ void main(void)
     accelerometer_start();
     LOG_INF("Engine analyzer started in INIT state");
 
+    moving_average_init(&similarity_ma);
+
+    buzzer_set_frequency(BUZZER_WORKING_FREQ);
+      k_sleep(K_MSEC(750));
+    buzzer_set_frequency(BUZZER_STOP_FREQ);
+    k_sleep(K_MSEC(250));
+    buzzer_set_frequency(BUZZER_WORKING_FREQ);
+    k_sleep(K_MSEC(750));
+    buzzer_set_frequency(BUZZER_STOP_FREQ);
+    k_sleep(K_MSEC(250));
+    buzzer_set_frequency(BUZZER_WORKING_FREQ);
+    k_sleep(K_MSEC(750));
+    buzzer_set_frequency(BUZZER_STOP_FREQ);
+    k_sleep(K_MSEC(250));
+
     while (1) {
         uint32_t events = k_event_wait(&ml_event, 
             EVT_DATA_READY | EVT_TRAINING_COMPLETE | EVT_ERROR | EVT_STOP,
             false, K_FOREVER);
-        
+        // Clear the events before processing
+        k_event_set_masked(&ml_event, 0, events);
         state_machine_step(events);
     }
 }

@@ -1,0 +1,3 @@
+Current hardware issues:
+1) USER_LED: User another GPIO pin instead od PB4(NJREST)
+2) Use 5v USB or direct Battery voltage to power Buzzer instead of buck converter 3.3V
