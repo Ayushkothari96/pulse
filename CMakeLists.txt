@@ -11,6 +11,7 @@ target_compile_options(app PRIVATE
 )
 
 # Add library path and file
+target_include_directories(app PRIVATE lib/nanoedge_ai)
 target_link_directories(app PRIVATE ${CMAKE_SOURCE_DIR}/lib/nanoedge_ai)
 target_link_libraries(app PRIVATE ${CMAKE_SOURCE_DIR}/lib/nanoedge_ai/libneai.a)
 
@@ -25,3 +26,6 @@ target_sources(app PRIVATE
     src/main.c
     src/accelerometer.c
 )
+
+# Add NanoEdgeAI memory mapping patch
+zephyr_linker_sources(SECTIONS neai_overlay.ld)

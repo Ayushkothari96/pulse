@@ -1,0 +1,15 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "Zephyr PowerShell": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "& 'C:\\development\\zephyr\\.venv\\Scripts\\Activate.ps1'; Write-Host 'Zephyr virtual environment activated!' -ForegroundColor Green"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "Zephyr PowerShell"
+}

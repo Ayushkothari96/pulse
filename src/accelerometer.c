@@ -21,13 +21,15 @@ K_MUTEX_DEFINE(buffer_mutex);  // Single declaration using Zephyr macro
 K_THREAD_STACK_DEFINE(accel_stack, ACCEL_STACK_SIZE);
 static struct k_thread accel_thread_data;
 
-static void swap_buffers(void)
+/**
+ * @brief Swaps the active and process buffers.
+ * @warning This function is not thread-safe and must be called from within a locked context.
+ */
+static void swap_buffers_unsafe(void)
 {
-    k_mutex_lock(&buffer_mutex, K_FOREVER);
     struct accel_data *temp = active_buffer;
     active_buffer = process_buffer;
     process_buffer = temp;
-    k_mutex_unlock(&buffer_mutex);
 }
 
 static int read_lis2dh12_data(struct accel_data *data)
@@ -54,28 +56,41 @@ static int read_lis2dh12_data(struct accel_data *data)
 
 static void accel_thread(void *p1, void *p2, void *p3)
 {
+    bool buffer_is_full = false;
+
     while (1) {
         if (atomic_get(&running)) {
+            // Lock the mutex to safely access shared resources
             k_mutex_lock(&buffer_mutex, K_FOREVER);
+
             if (0 == read_lis2dh12_data(active_buffer)) {
                 buffer_index++;
             }
 
+            // Check if the buffer is full
             if (buffer_index >= ACCEL_BUFFER_SIZE) {
                 active_buffer->samples = buffer_index;
-                swap_buffers();
+                swap_buffers_unsafe(); // Swap buffers while still locked
                 buffer_index = 0;
-                k_mutex_unlock(&buffer_mutex);
-                driver_config.data_ready_cb(process_buffer);
-            } else {
-                k_mutex_unlock(&buffer_mutex);
+                buffer_is_full = true;
             }
+
+            // Always unlock the mutex after the critical section
+            k_mutex_unlock(&buffer_mutex);
+
+            // If a buffer was filled, call the callback AFTER releasing the lock
+            if (buffer_is_full) {
+                driver_config.data_ready_cb(process_buffer);
+                buffer_is_full = false;
+            }
+
             k_msleep(1000 / driver_config.sample_rate_hz);
         } else {
             k_sleep(K_MSEC(100));
         }
     }
 }
+
 
 int accelerometer_init(const struct accel_config *config)
 {
