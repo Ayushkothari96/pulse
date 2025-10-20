@@ -8,13 +8,12 @@ LOG_MODULE_REGISTER(accel, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define ACCEL_STACK_SIZE 1024
 #define ACCEL_PRIORITY 5
-#define ACCEL_BUFFER_SIZE 256
 
 static const struct device *i2c_dev;
 static struct accel_config driver_config;
-static struct accel_sample buffer_storage[2][ACCEL_BUFFER_SIZE];  // Static buffer allocation
-static struct accel_sample *active_buffer;      // Currently being filled
-static struct accel_sample *process_buffer;     // Being processed
+static struct accel_data buffer_storage[2];  // Static buffer allocation
+static struct accel_data *active_buffer;      // Currently being filled
+static struct accel_data *process_buffer;     // Being processed
 static uint16_t buffer_index;
 static atomic_t running;
 K_MUTEX_DEFINE(buffer_mutex);  // Single declaration using Zephyr macro
@@ -22,16 +21,18 @@ K_MUTEX_DEFINE(buffer_mutex);  // Single declaration using Zephyr macro
 K_THREAD_STACK_DEFINE(accel_stack, ACCEL_STACK_SIZE);
 static struct k_thread accel_thread_data;
 
-static void swap_buffers(void)
+/**
+ * @brief Swaps the active and process buffers.
+ * @warning This function is not thread-safe and must be called from within a locked context.
+ */
+static void swap_buffers_unsafe(void)
 {
-    k_mutex_lock(&buffer_mutex, K_FOREVER);
-    struct accel_sample *temp = active_buffer;
+    struct accel_data *temp = active_buffer;
     active_buffer = process_buffer;
     process_buffer = temp;
-    k_mutex_unlock(&buffer_mutex);
 }
 
-static int read_lis2dh12_data(struct accel_sample *data)
+static int read_lis2dh12_data(struct accel_data *data)
 {
     struct sensor_value accel[3];
     int ret;
@@ -46,36 +47,59 @@ static int read_lis2dh12_data(struct accel_sample *data)
         return ret;
     }
 
-    data->x = sensor_value_to_float(&accel[0]);
-    data->y = sensor_value_to_float(&accel[1]);
-    data->z = sensor_value_to_float(&accel[2]);
-   // LOG_INF("X: %f, Y: %f, Z: %f", data->x, data->y, data->z);
+    data->x[buffer_index] = sensor_value_to_float(&accel[0]);
+    data->y[buffer_index] = sensor_value_to_float(&accel[1]);
+    data->z[buffer_index] = sensor_value_to_float(&accel[2]);
+
     return 0;
 }
 
 static void accel_thread(void *p1, void *p2, void *p3)
 {
+    bool buffer_is_full = false;
+
     while (1) {
         if (atomic_get(&running)) {
+            // Lock the mutex to safely access shared resources
             k_mutex_lock(&buffer_mutex, K_FOREVER);
-            if (0 == read_lis2dh12_data(&active_buffer[buffer_index])) {
+
+            if (0 == read_lis2dh12_data(active_buffer)) {
                 buffer_index++;
             }
 
+            // Check if the buffer is full
             if (buffer_index >= ACCEL_BUFFER_SIZE) {
-                swap_buffers();
+                active_buffer->samples = buffer_index;
+                swap_buffers_unsafe(); // Swap buffers while still locked
                 buffer_index = 0;
-                k_mutex_unlock(&buffer_mutex);
-                driver_config.data_ready_cb(process_buffer);
-            } else {
-                k_mutex_unlock(&buffer_mutex);
+                buffer_is_full = true;
             }
-            k_msleep(2);//(1000 / driver_config.sample_rate_hz);
+
+            // Always unlock the mutex after the critical section
+            k_mutex_unlock(&buffer_mutex);
+
+            // If a buffer was filled, call the callback AFTER releasing the lock
+            if (buffer_is_full) {
+                driver_config.data_ready_cb(process_buffer);
+                buffer_is_full = false;
+            }
+
+            // Calculate delay between samples
+            // Use K_USEC for better precision, especially at high sample rates
+            uint32_t delay_us = 1000000 / driver_config.sample_rate_hz;
+            if (delay_us >= 1000) {
+                // If delay is >= 1ms, use millisecond sleep
+                k_msleep(delay_us / 1000);
+            } else {
+                // For high sample rates (>1000 Hz), use microsecond sleep
+                k_usleep(delay_us);
+            }
         } else {
             k_sleep(K_MSEC(100));
         }
     }
 }
+
 
 int accelerometer_init(const struct accel_config *config)
 {
@@ -92,8 +116,8 @@ int accelerometer_init(const struct accel_config *config)
     driver_config = *config;
     
     // Initialize static buffers
-    active_buffer = buffer_storage[0];
-    process_buffer = buffer_storage[1];
+    active_buffer = &buffer_storage[0];
+    process_buffer = &buffer_storage[1];
     buffer_index = 0;
     atomic_set(&running, false);
 

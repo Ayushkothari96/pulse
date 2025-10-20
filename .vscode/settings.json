@@ -1,20 +1,15 @@
 {
-    "cmake.configureOnOpen": true,
-    "cmake.generator": "Ninja",
-    "C_Cpp.default.browse.path": [
-        "${workspaceFolder}/src",
-        "${workspaceFolder}/include"
-    ],
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "C_Cpp.errorSquiggles": "enabled",
-    "files.associations": {
-        "*.h": "c"
+    "terminal.integrated.profiles.windows": {
+        "Zephyr PowerShell": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "& 'C:\\development\\zephyr\\.venv\\Scripts\\Activate.ps1'; Write-Host 'Zephyr virtual environment activated!' -ForegroundColor Green"
+            ]
+        }
     },
-    "cmake.configureEnvironment": {
-        "ZEPHYR_BASE": "${env:ZEPHYR_BASE}",
-        "ZEPHYR_SDK_INSTALL_DIR": "${env:ZEPHYR_SDK_INSTALL_DIR}"
-    },
-    "C_Cpp.formatting": "clangFormat",
-    "C_Cpp.clang_format_style": "file",
-    "editor.formatOnSave": true
+    "terminal.integrated.defaultProfile.windows": "Zephyr PowerShell"
 }
