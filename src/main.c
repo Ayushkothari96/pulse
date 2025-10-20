@@ -52,6 +52,35 @@ void ml_process_data(struct accel_data *buffer, size_t size);
 enum ml_state ml_get_state(void);
 void ml_init(void);
 
+/**
+ * @brief Copy and interleave accelerometer data into ML buffer
+ * 
+ * Takes data from the accelerometer buffer (separate X, Y, Z arrays) and
+ * interleaves it into the ML buffer in the format expected by NanoEdge AI:
+ * x1,y1,z1, x2,y2,z2, ..., x256,y256,z256
+ * 
+ * @note This function does NOT lock the mutex. Caller must ensure thread safety.
+ * @return true if data was copied successfully, false if buffer is NULL
+ */
+static bool copy_accel_to_ml_buffer(void)
+{
+    // Capture pointer locally to avoid race condition with callback
+    const struct accel_data *local_buffer = pending_buffer;
+    
+    if (local_buffer == NULL) {
+        return false;
+    }
+    
+    // Interleave the axes: for each sample, write x, y, z
+    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
+        ml_buffer[i * 3 + 0] = local_buffer->x[i];
+        ml_buffer[i * 3 + 1] = local_buffer->y[i];
+        ml_buffer[i * 3 + 2] = local_buffer->z[i];
+    }
+    
+    return true;
+}
+
 static void state_machine_step(uint32_t events)
 {
     static uint8_t trainingIteration = 0;
@@ -61,18 +90,14 @@ static void state_machine_step(uint32_t events)
     switch (current_state) {
         case ML_STATE_TRAINING:
             if (events & EVT_DATA_READY) {
-                // Copy data from accelerometer buffer to ML buffer
-                // NanoEdge AI expects interleaved format: x1,y1,z1, x2,y2,z2, ..., x256,y256,z256
+                // Lock mutex for entire critical section (copy + ML processing)
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                // Capture pointer locally to avoid race condition with callback
-                const struct accel_data *local_buffer = pending_buffer;
-                if (local_buffer != NULL) {
-                    // Interleave the axes: for each sample, write x, y, z
-                    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
-                        ml_buffer[i * 3 + 0] = local_buffer->x[i];
-                        ml_buffer[i * 3 + 1] = local_buffer->y[i];
-                        ml_buffer[i * 3 + 2] = local_buffer->z[i];
-                    }
+                
+                // Copy data from accelerometer buffer to ML buffer
+                if (!copy_accel_to_ml_buffer()) {
+                    LOG_ERR("Failed to copy accelerometer data (NULL buffer)");
+                    k_mutex_unlock(&ml_mutex);
+                    break;
                 }
                 
                 if (trainingIteration < MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING) {
@@ -95,24 +120,21 @@ static void state_machine_step(uint32_t events)
                     current_state = ML_STATE_INFERENCING;
                     LOG_INF("Training complete (max iterations), entering inferencing");
                 }
+                
                 k_mutex_unlock(&ml_mutex);
             }
             break;
 
         case ML_STATE_INFERENCING:
             if (events & EVT_DATA_READY) {
-                // Copy data from accelerometer buffer to ML buffer
-                // NanoEdge AI expects interleaved format: x1,y1,z1, x2,y2,z2, ..., x256,y256,z256
+                // Lock mutex for entire critical section (copy + ML processing)
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                // Capture pointer locally to avoid race condition with callback
-                const struct accel_data *local_buffer = pending_buffer;
-                if (local_buffer != NULL) {
-                    // Interleave the axes: for each sample, write x, y, z
-                    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
-                        ml_buffer[i * 3 + 0] = local_buffer->x[i];
-                        ml_buffer[i * 3 + 1] = local_buffer->y[i];
-                        ml_buffer[i * 3 + 2] = local_buffer->z[i];
-                    }
+                
+                // Copy data from accelerometer buffer to ML buffer
+                if (!copy_accel_to_ml_buffer()) {
+                    LOG_ERR("Failed to copy accelerometer data (NULL buffer)");
+                    k_mutex_unlock(&ml_mutex);
+                    break;
                 }
                 
                 error_code = neai_anomalydetection_detect(ml_buffer, &similarity);
@@ -121,6 +143,7 @@ static void state_machine_step(uint32_t events)
                 } else {
                     LOG_INF("Similarity: %d", similarity);
                 }
+                
                 k_mutex_unlock(&ml_mutex);
             }
             if (events & EVT_ERROR) {

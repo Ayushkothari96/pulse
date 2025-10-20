@@ -47,9 +47,9 @@ static int read_lis2dh12_data(struct accel_data *data)
         return ret;
     }
 
-    data->x[buffer_index] = sensor_value_to_double(&accel[0]);
-    data->y[buffer_index] = sensor_value_to_double(&accel[1]);
-    data->z[buffer_index] = sensor_value_to_double(&accel[2]);
+    data->x[buffer_index] = sensor_value_to_float(&accel[0]);
+    data->y[buffer_index] = sensor_value_to_float(&accel[1]);
+    data->z[buffer_index] = sensor_value_to_float(&accel[2]);
 
     return 0;
 }
