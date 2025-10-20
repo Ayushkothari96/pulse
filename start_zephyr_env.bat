@@ -10,4 +10,4 @@ echo Opening VS Code with Zephyr virtual environment...
 echo.
 
 REM Open VS Code in the current directory
-code "C:\development\zephyr\zephyrproject\engine-analyser"
+code .
