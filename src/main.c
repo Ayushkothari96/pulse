@@ -278,7 +278,7 @@ void main(void)
     }
 
     accelerometer_start();
-    LOG_INF("Engine analyzer started, current state: %d", current_state);
+    LOG_INF("Pulse started, current state: %d", current_state);
 
     while (1) {
         uint32_t events = k_event_wait(&ml_event, 

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20.0)
 
 # Find Zephyr. This also loads Zephyr's build system.
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(engine-analyser)
+project(pulse)
 
 # Add FPU flags
 target_compile_options(app PRIVATE

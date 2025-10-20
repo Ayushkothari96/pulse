@@ -8,7 +8,7 @@ west flash -d build-mcuboot
 
 REM Build application
 echo Building Application...
-west build -p -b nucleo_l412rb_p engine-analyser -d build-app
+west build -p -b nucleo_l412rb_p pulse -d build-app
 
 REM Sign application
 echo Signing Application...

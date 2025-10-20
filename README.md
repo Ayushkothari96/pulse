@@ -1,4 +1,4 @@
-# Engine Analyser
+# Pulse
 
 An embedded machine learning system for real-time engine vibration analysis and anomaly detection using STMicroelectronics NanoEdge AI on STM32L412RB.
 
@@ -118,7 +118,7 @@ This project requires the NanoEdge AI library from STMicroelectronics:
 ## 📁 Project Structure
 
 ```
-engine-analyser/
+pulse/
 ├── boards/
 │   └── nucleo_l412rb_p.overlay      # Device tree overlay for board configuration
 ├── hardware/
@@ -154,8 +154,8 @@ engine-analyser/
 
 ```bash
 cd c:/development/zephyr/zephyrproject/
-git clone https://github.com/Ayushkothari96/engine-analyser.git
-cd engine-analyser
+git clone https://github.com/Ayushkothari96/pulse.git
+cd pulse
 ```
 
 ### 2. Install Dependencies
@@ -184,7 +184,7 @@ pip3 install --user -r ~/zephyrproject/zephyr/scripts/requirements.txt
 
 1. Download and install [NanoEdge AI Studio](https://www.st.com/en/development-tools/nanoedgeaistudio.html)
 2. Create a new Anomaly Detection project
-3. Import your training data (see `engine-analyser-logger` for data collection)
+3. Import your training data (see `pulse-logger` for data collection)
 4. Benchmark and select the best model
 5. Export the library for STM32 ARM Cortex-M4F
 6. Copy `libneai.a` and `NanoEdgeAI.h` to `lib/nanoedge_ai/`
@@ -198,7 +198,7 @@ start_zephyr_env.bat
 west build -b nucleo_l412rb_p
 
 # On Linux/Mac
-cd ~/zephyrproject/engine-analyser
+cd ~/zephyrproject/pulse
 west build -b nucleo_l412rb_p
 ```
 
@@ -551,7 +551,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ayush Kothari** - [@Ayushkothari96](https://github.com/Ayushkothari96)
 
-Project Link: [https://github.com/Ayushkothari96/engine-analyser](https://github.com/Ayushkothari96/engine-analyser)
+Project Link: [https://github.com/Ayushkothari96/pulse](https://github.com/Ayushkothari96/pulse)
 
 ---
 
