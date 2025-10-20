@@ -84,7 +84,16 @@ static void accel_thread(void *p1, void *p2, void *p3)
                 buffer_is_full = false;
             }
 
-            k_msleep(1000 / driver_config.sample_rate_hz);
+            // Calculate delay between samples
+            // Use K_USEC for better precision, especially at high sample rates
+            uint32_t delay_us = 1000000 / driver_config.sample_rate_hz;
+            if (delay_us >= 1000) {
+                // If delay is >= 1ms, use millisecond sleep
+                k_msleep(delay_us / 1000);
+            } else {
+                // For high sample rates (>1000 Hz), use microsecond sleep
+                k_usleep(delay_us);
+            }
         } else {
             k_sleep(K_MSEC(100));
         }
