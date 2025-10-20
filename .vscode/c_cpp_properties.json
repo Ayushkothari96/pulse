@@ -1,0 +1,35 @@
+{
+    "configurations": [
+        {
+            "name": "Zephyr",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/build/zephyr/include/generated/**",
+                "${env:ZEPHYR_BASE}/include/**",
+                "${env:ZEPHYR_BASE}/subsys/**",
+                "${env:ZEPHYR_BASE}/drivers/**"
+            ],
+            "defines": [
+                "CONFIG_LOG",
+                "CONFIG_SERIAL",
+                "CONFIG_I2C"
+            ],
+            "compilerPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "gcc-arm",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/src",
+                    "${workspaceFolder}/include",
+                    "${workspaceFolder}/build/zephyr/include/generated"
+                ],
+                "limitSymbolsToIncludedHeaders": false
+            }
+        }
+    ],
+    "version": 4
+}

@@ -1,12 +1,31 @@
 / {
     aliases {
         accel0 = &lis2dh12;
+        buzzer0 = &buzzer;
+        led0 = &red_led;
     };
 
     chosen {
         zephyr,console = &cdc_acm_uart0;
         /* Optional: also route the shell to USB if desired */
         zephyr,shell-uart = &cdc_acm_uart0;
+    };
+
+    pwm_buzzer {
+        compatible = "pwm-leds";
+        status = "okay";
+
+        buzzer: buzzer {
+            pwms = <&pwm2 1 1000000 PWM_POLARITY_NORMAL>;  // PWM2 CH1, 1ms period
+            label = "Buzzer";
+        };
+    };
+
+    leds {
+        red_led: led_1 {/*This led doesnt work*/
+            gpios = <&gpiob 4 GPIO_ACTIVE_LOW>;
+            label = "User LED";
+        };
     };
     
 };
@@ -47,4 +66,14 @@
 
 &gpiob {
     status = "okay";
+};
+
+&timers2 {
+    status = "okay";
+
+    pwm2: pwm {
+        status = "okay";
+        pinctrl-0 = <&tim2_ch1_pa15>;
+        pinctrl-names = "default";
+    };
 };

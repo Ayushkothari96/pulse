@@ -62,12 +62,16 @@ static void state_machine_step(uint32_t events)
         case ML_STATE_TRAINING:
             if (events & EVT_DATA_READY) {
                 // Copy data from accelerometer buffer to ML buffer
+                // NanoEdge AI expects interleaved format: x1,y1,z1, x2,y2,z2, ..., x256,y256,z256
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                if (pending_buffer != NULL) {
-                    for (uint16_t i = 0; i < DATA_INPUT_USER / 3; i++) {
-                        ml_buffer[i * 3] = pending_buffer->x[i];
-                        ml_buffer[i * 3 + 1] = pending_buffer->y[i];
-                        ml_buffer[i * 3 + 2] = pending_buffer->z[i];
+                // Capture pointer locally to avoid race condition with callback
+                const struct accel_data *local_buffer = pending_buffer;
+                if (local_buffer != NULL) {
+                    // Interleave the axes: for each sample, write x, y, z
+                    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
+                        ml_buffer[i * 3 + 0] = local_buffer->x[i];
+                        ml_buffer[i * 3 + 1] = local_buffer->y[i];
+                        ml_buffer[i * 3 + 2] = local_buffer->z[i];
                     }
                 }
                 
@@ -98,12 +102,16 @@ static void state_machine_step(uint32_t events)
         case ML_STATE_INFERENCING:
             if (events & EVT_DATA_READY) {
                 // Copy data from accelerometer buffer to ML buffer
+                // NanoEdge AI expects interleaved format: x1,y1,z1, x2,y2,z2, ..., x256,y256,z256
                 k_mutex_lock(&ml_mutex, K_FOREVER);
-                if (pending_buffer != NULL) {
-                    for (uint16_t i = 0; i < DATA_INPUT_USER / 3; i++) {
-                        ml_buffer[i * 3] = pending_buffer->x[i];
-                        ml_buffer[i * 3 + 1] = pending_buffer->y[i];
-                        ml_buffer[i * 3 + 2] = pending_buffer->z[i];
+                // Capture pointer locally to avoid race condition with callback
+                const struct accel_data *local_buffer = pending_buffer;
+                if (local_buffer != NULL) {
+                    // Interleave the axes: for each sample, write x, y, z
+                    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
+                        ml_buffer[i * 3 + 0] = local_buffer->x[i];
+                        ml_buffer[i * 3 + 1] = local_buffer->y[i];
+                        ml_buffer[i * 3 + 2] = local_buffer->z[i];
                     }
                 }
                 
@@ -134,8 +142,14 @@ static void data_ready_handler(const struct accel_data *buffer)
     // Fast, non-blocking callback - just signal that data is ready
     // The buffer pointer remains valid until next callback (double buffering in accelerometer.c)
     
-    if (buffer == NULL || buffer->samples != ACCEL_BUFFER_SIZE) {
-        LOG_ERR("Invalid buffer: %p, samples: %u", buffer, buffer ? buffer->samples : 0);
+    if (buffer == NULL) {
+        LOG_ERR("Invalid buffer: NULL pointer");
+        k_event_post(&ml_event, EVT_ERROR);
+        return;
+    }
+    
+    if (buffer->samples != ACCEL_BUFFER_SIZE) {
+        LOG_ERR("Invalid buffer samples: %u (expected %u)", buffer->samples, ACCEL_BUFFER_SIZE);
         k_event_post(&ml_event, EVT_ERROR);
         return;
     }
@@ -213,14 +227,11 @@ void main(void)
     k_event_init(&ml_event);
     k_mutex_init(&ml_mutex);
    
-    // // Initialize NanoEdge AI first, before starting accelerometer
-    k_msleep(500); // Give time for logs to flush
+    k_msleep(100);
 
+    //Initialize NanoEdge AI first, before starting accelerometer
     error_code = neai_anomalydetection_init();
-    
-    // Check if we made it past the init call
-    LOG_INF("Returned from neai_anomalydetection_init()");
-    
+        
     if (error_code != NEAI_OK) {
         LOG_ERR("NanoEdge AI initialization failed, error code: %d", error_code);
         LOG_ERR("System will continue in IDLE state without ML functionality");
@@ -229,12 +240,12 @@ void main(void)
         LOG_INF("NanoEdge AI initialized successfully");
         current_state = ML_STATE_TRAINING;
     }
-     k_msleep(1000); // Give time for logs to flush
+     k_msleep(500); // Give time for logs to flush
 
     LOG_INF("Current state: %d", current_state);
 
     struct accel_config config = {
-        .sample_rate_hz = 100,
+        .sample_rate_hz = 500,
         .data_ready_cb = data_ready_handler
     };
 
