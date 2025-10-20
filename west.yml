@@ -11,6 +11,6 @@ manifest:
       remote: zephyrproject-rtos
       revision: main
       path: bootloader/mcuboot
-    - name: engine-analyser
+    - name: pulse
       url: .
-      path: engine-analyser
+      path: pulse
