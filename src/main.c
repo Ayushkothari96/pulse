@@ -5,6 +5,8 @@
 #include <zephyr/debug/thread_analyzer.h>
 #include <zephyr/fatal.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/shell/shell.h>
+#include <stdlib.h>
 #include "accelerometer.h"
 #include "NanoEdgeAI.h"
 
@@ -48,9 +50,49 @@ static struct k_mutex ml_mutex;
 static enum ml_state current_state = ML_STATE_IDLE;
 static const struct accel_data *pending_buffer = NULL; // Pointer to accelerometer buffer
 
+// Statistics for shell access
+static uint8_t training_iteration = 0;
+static uint8_t last_similarity = 0;
+static bool similarity_valid = false;
+static uint16_t accel_sample_rate = 500;
+
+// Deferred work for ML reinitialization
+static struct k_work ml_reinit_work;
+static volatile bool ml_reinit_success = false;
+static volatile bool ml_reinit_done = false;
+
 void ml_process_data(struct accel_data *buffer, size_t size);
 enum ml_state ml_get_state(void);
 void ml_init(void);
+
+/**
+ * @brief Deferred work handler to reinitialize NanoEdge AI library
+ * 
+ * This runs in the system work queue context, not in the shell thread,
+ * so it won't block the USB interface.
+ */
+static void ml_reinit_work_handler(struct k_work *work)
+{
+    LOG_INF("Starting NanoEdge AI reinitialization...");
+    
+    enum neai_state error_code = neai_anomalydetection_init();
+    
+    if (error_code == NEAI_OK) {
+        k_mutex_lock(&ml_mutex, K_FOREVER);
+        training_iteration = 0;
+        similarity_valid = false;
+        current_state = ML_STATE_IDLE;
+        k_mutex_unlock(&ml_mutex);
+        
+        ml_reinit_success = true;
+        LOG_INF("NanoEdge AI reinitialized successfully");
+    } else {
+        ml_reinit_success = false;
+        LOG_ERR("NanoEdge AI reinitialization failed: %d", error_code);
+    }
+    
+    ml_reinit_done = true;
+}
 
 /**
  * @brief Copy and interleave accelerometer data into ML buffer
@@ -83,7 +125,6 @@ static bool copy_accel_to_ml_buffer(void)
 
 static void state_machine_step(uint32_t events)
 {
-    static uint8_t trainingIteration = 0;
     uint8_t similarity = 0;
     enum neai_state error_code = NEAI_OK;
 
@@ -100,17 +141,18 @@ static void state_machine_step(uint32_t events)
                     break;
                 }
                 
-                if (trainingIteration < MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING) {
+                if (training_iteration < MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING) {
                     error_code = neai_anomalydetection_learn(ml_buffer);
                     
                     if (error_code == NEAI_MINIMAL_RECOMMENDED_LEARNING_DONE) {
-                        // Training complete early
+                        // Training complete early - model already trained
+                        LOG_WRN("Model already trained! Power cycle to retrain from scratch.");
                         current_state = ML_STATE_INFERENCING;
                         LOG_INF("Training complete (AI satisfied), entering inferencing");
                     } else if (error_code == NEAI_NOT_ENOUGH_CALL_TO_LEARNING) {
                         // Continue training
-                        trainingIteration++;
-                        LOG_INF("Training iteration %d", trainingIteration);
+                        training_iteration++;
+                        LOG_INF("Training iteration %d", training_iteration);
                     } else {
                         // Error occurred
                         LOG_ERR("Training error: %d", error_code);
@@ -141,7 +183,9 @@ static void state_machine_step(uint32_t events)
                 if (error_code != NEAI_OK) {
                     LOG_ERR("Error in inferencing, error code: %d", error_code);
                 } else {
-                    LOG_INF("Similarity: %d", similarity);
+                    last_similarity = similarity;
+                    similarity_valid = true;
+                    LOG_INF("Similarity: %d%%", similarity);
                 }
                 
                 k_mutex_unlock(&ml_mutex);
@@ -249,8 +293,15 @@ void main(void)
 
     k_event_init(&ml_event);
     k_mutex_init(&ml_mutex);
+    
+    // Initialize deferred work for ML reinitialization
+    k_work_init(&ml_reinit_work, ml_reinit_work_handler);
    
     k_msleep(100);
+
+    // Wait for USB and shell to initialize
+    LOG_INF("Waiting for system initialization...");
+    k_msleep(2000);
 
     //Initialize NanoEdge AI first, before starting accelerometer
     error_code = neai_anomalydetection_init();
@@ -263,10 +314,11 @@ void main(void)
         LOG_INF("NanoEdge AI initialized successfully");
         current_state = ML_STATE_TRAINING;
     }
-     k_msleep(500); // Give time for logs to flush
 
     LOG_INF("Current state: %d", current_state);
 
+    // Initialize accelerometer
+    LOG_INF("Initializing accelerometer...");
     struct accel_config config = {
         .sample_rate_hz = 500,
         .data_ready_cb = data_ready_handler
@@ -274,11 +326,17 @@ void main(void)
 
     if (accelerometer_init(&config) != 0) {
         LOG_ERR("Failed to initialize accelerometer");
-        return;
+        LOG_ERR("System will continue without accelerometer data");
+        // Don't return - allow shell to work for debugging
+        current_state = ML_STATE_IDLE;
+    } else {
+        accelerometer_start();
+        accel_sample_rate = config.sample_rate_hz;
+        LOG_INF("Accelerometer started successfully");
     }
 
-    accelerometer_start();
-    LOG_INF("Pulse started, current state: %d", current_state);
+    LOG_INF("Pulse device ready, current_state: %d", current_state);
+    LOG_INF("Type 'help' for available commands");
 
     while (1) {
         uint32_t events = k_event_wait(&ml_event, 
@@ -288,3 +346,194 @@ void main(void)
         state_machine_step(events);
     }
 }
+
+/* ============================================================================
+ * Shell Command Handlers
+ * ============================================================================ */
+
+static const char *ml_state_to_string(enum ml_state state)
+{
+    switch (state) {
+        case ML_STATE_IDLE: return "idle";
+        case ML_STATE_TRAINING: return "training";
+        case ML_STATE_INFERENCING: return "inferencing";
+        default: return "unknown";
+    }
+}
+
+/* ml state - Get current ML state */
+static int cmd_ml_state(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "ML State: %s (%d)", 
+                ml_state_to_string(current_state), current_state);
+    
+    if (current_state == ML_STATE_TRAINING) {
+        shell_print(sh, "Training iteration: %d/%d",
+                    training_iteration, MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING);
+    } else if (current_state == ML_STATE_INFERENCING && similarity_valid) {
+        shell_print(sh, "Last similarity: %d%%", last_similarity);
+    }
+    
+    return 0;
+}
+
+/* ml set - Set ML state */
+static int cmd_ml_set(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc < 2) {
+        shell_error(sh, "Usage: ml set <state>");
+        shell_print(sh, "States: idle(0), training(1), inferencing(2)");
+        return -EINVAL;
+    }
+    
+    int new_state = atoi(argv[1]);
+    
+    if (new_state < ML_STATE_IDLE || new_state > ML_STATE_INFERENCING) {
+        shell_error(sh, "Invalid state. Use: 0(idle), 1(training), 2(inferencing)");
+        return -EINVAL;
+    }
+    
+    k_mutex_lock(&ml_mutex, K_FOREVER);
+    current_state = (enum ml_state)new_state;
+    
+    // Reset training iteration when entering training mode
+    if (new_state == ML_STATE_TRAINING) {
+        training_iteration = 0;
+        similarity_valid = false;  // Clear old similarity data
+        shell_print(sh, "Note: If model is already trained, use 'ml reset' first");
+        shell_print(sh, "      to reinitialize for fresh training.");
+    }
+    
+    k_mutex_unlock(&ml_mutex);
+    
+    shell_print(sh, "ML state set to: %s", ml_state_to_string(current_state));
+    return 0;
+}
+
+/* ml info - Get detailed ML information */
+static int cmd_ml_info(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "=== ML Information ===");
+    shell_print(sh, "Current state:      %s", ml_state_to_string(current_state));
+    shell_print(sh, "Training iteration: %d/%d", 
+                training_iteration, MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING);
+    
+    if (similarity_valid) {
+        shell_print(sh, "Last similarity:    %d%%", last_similarity);
+        if (last_similarity >= 90) {
+            shell_print(sh, "Status:             NORMAL");
+        } else if (last_similarity >= 70) {
+            shell_print(sh, "Status:             WARNING");
+        } else {
+            shell_print(sh, "Status:             ANOMALY!");
+        }
+    } else {
+        shell_print(sh, "Last similarity:    (no data)");
+    }
+    
+    return 0;
+}
+
+/* ml reset - Reinitialize NanoEdge AI library using deferred work */
+static int cmd_ml_reset(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "Submitting NanoEdge AI reinitialization request...");
+    shell_print(sh, "This will run in background to avoid blocking USB.");
+    
+    // Reset flags
+    ml_reinit_done = false;
+    ml_reinit_success = false;
+    
+    // Submit work to system work queue
+    k_work_submit(&ml_reinit_work);
+    
+    // Wait for completion (with timeout)
+    int timeout_ms = 5000;
+    int elapsed_ms = 0;
+    
+    while (!ml_reinit_done && elapsed_ms < timeout_ms) {
+        k_msleep(100);
+        elapsed_ms += 100;
+    }
+    
+    if (!ml_reinit_done) {
+        shell_error(sh, "Timeout waiting for reinitialization!");
+        return -ETIMEDOUT;
+    }
+    
+    if (ml_reinit_success) {
+        shell_print(sh, "NanoEdge AI reinitialized successfully!");
+        shell_print(sh, "ML state reset to: IDLE");
+        shell_print(sh, "Use 'ml set 1' to start fresh training.");
+        return 0;
+    } else {
+        shell_error(sh, "Reinitialization failed - check logs above");
+        return -1;
+    }
+}
+
+/* device info - Get device information */
+static int cmd_device_info(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "=== Device Information ===");
+    shell_print(sh, "Name:         Pulse");
+    shell_print(sh, "Manufacturer: Kothari");
+    shell_print(sh, "Version:      1.0.0");
+    shell_print(sh, "Board:        nucleo_l412rb_p");
+    shell_print(sh, "Uptime:       %lld ms", k_uptime_get());
+    
+    return 0;
+}
+
+/* accel info - Get accelerometer information */
+static int cmd_accel_info(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "=== Accelerometer Information ===");
+    shell_print(sh, "Sample rate:  %d Hz", accel_sample_rate);
+    shell_print(sh, "Buffer size:  %d samples", ACCEL_BUFFER_SIZE);
+    shell_print(sh, "Status:       running");
+    
+    return 0;
+}
+
+/* accel test - Test accelerometer reading */
+static int cmd_accel_test(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "Testing accelerometer initialization...");
+    
+    struct accel_config config = {
+        .sample_rate_hz = 500,
+        .data_ready_cb = data_ready_handler
+    };
+
+    if (accelerometer_init(&config) != 0) {
+        shell_error(sh, "Accelerometer initialization failed!");
+        shell_print(sh, "Check logs above for detailed error");
+        return -1;
+    }
+    
+    accelerometer_start();
+    accel_sample_rate = config.sample_rate_hz;
+    shell_print(sh, "Accelerometer started successfully");
+    
+    return 0;
+}
+
+/* Register shell commands */
+SHELL_STATIC_SUBCMD_SET_CREATE(ml_cmds,
+    SHELL_CMD(state, NULL, "Get current ML state", cmd_ml_state),
+    SHELL_CMD(set, NULL, "Set ML state (0=idle, 1=training, 2=inferencing)", cmd_ml_set),
+    SHELL_CMD(info, NULL, "Get detailed ML information", cmd_ml_info),
+    SHELL_CMD(reset, NULL, "Reinitialize NanoEdge AI (for retraining)", cmd_ml_reset),
+    SHELL_SUBCMD_SET_END
+);
+
+SHELL_STATIC_SUBCMD_SET_CREATE(accel_cmds,
+    SHELL_CMD(info, NULL, "Get accelerometer information", cmd_accel_info),
+    SHELL_CMD(test, NULL, "Test/restart accelerometer", cmd_accel_test),
+    SHELL_SUBCMD_SET_END
+);
+
+SHELL_CMD_REGISTER(ml, &ml_cmds, "Machine Learning commands", NULL);
+SHELL_CMD_REGISTER(device, NULL, "Get device information", cmd_device_info);
+SHELL_CMD_REGISTER(accel, &accel_cmds, "Accelerometer commands", NULL);
