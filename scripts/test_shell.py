@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple test script for Pulse USB Shell Interface
+Simple test script for Pulse USB Console Interface
 
 Usage: python test_shell.py COM3
 """
@@ -9,7 +9,7 @@ import serial
 import sys
 import time
 
-def send_command(ser, cmd, timeout=2.0):
+def send_command(ser, cmd, timeout=3.0):
     """Send a command and read response"""
     print(f"\n→ {cmd}")
     
@@ -17,8 +17,8 @@ def send_command(ser, cmd, timeout=2.0):
     if ser.in_waiting:
         ser.read(ser.in_waiting)
     
-    # Send command
-    ser.write((cmd + '\n').encode())
+    # Send command with newline
+    ser.write((cmd + '\r\n').encode())
     
     # Wait and read response with timeout
     response = []
@@ -28,26 +28,22 @@ def send_command(ser, cmd, timeout=2.0):
     while (time.time() - start_time) < timeout:
         if ser.in_waiting:
             chunk = ser.read(ser.in_waiting)
-            lines = chunk.decode('utf-8', errors='ignore').split('\n')
-            response.extend(lines)
+            text = chunk.decode('utf-8', errors='ignore')
+            response.append(text)
             last_data_time = time.time()
         
-        # If we got data and nothing new for 200ms, we're done
-        if response and (time.time() - last_data_time) > 0.2:
+        # If we got data and nothing new for 500ms, we're done
+        if response and (time.time() - last_data_time) > 0.5:
             break
         
-        time.sleep(0.01)
+        time.sleep(0.05)
     
-    # Filter and print response
-    filtered = []
-    for line in response:
-        line = line.strip()
-        # Skip empty lines, echoed command, and prompts
-        if line and not line.startswith('pulse:~$') and line != cmd:
-            filtered.append(line)
-            print(f"  {line}")
+    # Print response
+    full_response = ''.join(response)
+    if full_response:
+        print(full_response)
     
-    return filtered
+    return full_response
 
 def main():
     if len(sys.argv) < 2:
@@ -58,7 +54,7 @@ def main():
     port = sys.argv[1]
     
     print("="*60)
-    print("Pulse USB Shell Test Script")
+    print("Pulse USB Console Test Script")
     print("="*60)
     print(f"Connecting to {port}...")
     
@@ -71,23 +67,25 @@ def main():
         print("✓ Connected\n")
         
         # Test commands
-        print("Testing Shell Commands")
+        print("Testing Console Commands")
         print("="*60)
         
-        send_command(ser, "device")
-        send_command(ser, "accel")
-        send_command(ser, "ml state")
-        send_command(ser, "ml info")
+        send_command(ser, "STATUS")
+        time.sleep(0.5)
+        # send_command(ser, "RESET")
         
         print("\n" + "="*60)
         print("Interactive Mode")
         print("="*60)
-        print("Enter commands (or 'quit' to exit):")
-        print("Note: Response may include log messages from device\n")
+        print("Available commands:")
+        print("  STATUS - Show device status and ML state")
+        print("  RESET  - Reset ML model for retraining")
+        print("  quit   - Exit this script")
+        print("="*60 + "\n")
         
         while True:
             try:
-                cmd = input("pulse:~$ ").strip()
+                cmd = input("> ").strip()
                 
                 if cmd.lower() in ['quit', 'exit', 'q']:
                     break
@@ -95,7 +93,8 @@ def main():
                 if not cmd:
                     continue
                 
-                send_command(ser, cmd, timeout=3.0)
+                # Convert to uppercase for device
+                send_command(ser, cmd.upper(), timeout=5.0)
                 
             except KeyboardInterrupt:
                 print("\n\nExiting...")
