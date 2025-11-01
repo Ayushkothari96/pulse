@@ -1,0 +1,48 @@
+--- a/src/main.c
++++ b/src/main.c
+@@ -33,6 +33,10 @@
+ #define LED_PORT "GPIOB"  // Make sure the label is correct
+ #define LED_PIN 4         // Ensure this pin exists on your board
+ 
++/* Similarity thresholds for anomaly detection */
++#define SIMILARITY_NORMAL_THRESHOLD 90    /* >= 90% is normal operation */
++#define SIMILARITY_WARNING_THRESHOLD 70   /* 70-89% is warning range */
++
+ /* ============================================================================
+  * Simple ML State Machine
+  * ============================================================================ */
+@@ -196,8 +200,11 @@ static int nvs_storage_init(void)
+         return rc;
+     }
+     
+-    /* STM32L412 flash: Use 2KB sectors for NVS */
+-    nvs.sector_size = 2048;  /* 2KB sectors (STM32L4 flash page size) */
++    /* STM32L412 flash: Use 2KB sectors for NVS
++     * NOTE: Hardcoded values used instead of info.size because NVS requires specific
++     * sector alignment. The retrieved page info may not match NVS requirements.
++     */
++    nvs.sector_size = 2048;  /* 2KB sectors (must match STM32L4 flash page size) */
+     nvs.sector_count = 24;   /* 24 sectors = 48KB total partition (for 10 samples + overhead) */
+     
+     LOG_INF("NVS config: offset=0x%x, sector_size=%d, sector_count=%d, partition_size=%dKB",
+@@ -484,7 +491,7 @@ static void state_machine_step(uint32_t events)
+                     
+                     if (error_code == NEAI_MINIMAL_RECOMMENDED_LEARNING_DONE) {
+                         // Training complete early - model already trained
+-                        LOG_WRN("Model already trained! Power cycle to retrain from scratch.");
++                        LOG_WRN("Model already trained! Use RESET command or power cycle to retrain from scratch.");
+                         current_state = ML_STATE_INFERENCING;
+                         LOG_INF("Training complete (AI satisfied), entering inferencing");
+                         
+@@ -799,9 +806,9 @@ static void cmd_status(void)
+     
+     if (similarity_valid) {
+         printk("Similarity:  %d%%", last_similarity);
+-        if (last_similarity >= 90) {
++        if (last_similarity >= SIMILARITY_NORMAL_THRESHOLD) {
+             printk(" (NORMAL)\n");
+-        } else if (last_similarity >= 70) {
++        } else if (last_similarity >= SIMILARITY_WARNING_THRESHOLD) {
+             printk(" (WARNING)\n");
+         } else {
+             printk(" (ANOMALY!)\n");

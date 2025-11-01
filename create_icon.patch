@@ -1,0 +1,11 @@
+--- a/scripts/create_icon.py
++++ b/scripts/create_icon.py
+@@ -1,7 +1,7 @@
+ # Icon Generator for Pulse Monitor
+ # Creates a simple .ico file for the executable
+ 
+-from PIL import Image, ImageDraw, ImageFont
++from PIL import Image, ImageDraw
+ import os
+ 
+ def create_pulse_icon():

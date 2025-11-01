@@ -1,0 +1,33 @@
+--- a/docs/flash_storage.md
++++ b/docs/flash_storage.md
+@@ -45,8 +45,8 @@ The Pulse device stores training data samples in non-volatile flash memory to p
+ 
+ ```
+ Flash Memory (128KB total)
+-├─ Application Code (0x00000 - 0x1BFFF): ~112KB
+-└─ Storage Partition (0x1C000 - 0x1FFFF): 16KB
++├─ Application Code (0x00000 - 0x13FFF): 80KB
++└─ Storage Partition (0x14000 - 0x1FBFF): 47,104 bytes (slightly less than 48KB to stay within boundary)
+    └─ NVS File System
+       └─ Training Data (ID=1)
+ ```
+@@ -103,7 +103,7 @@ NVS Partition (48KB, 24 sectors × 2KB)
+ - **Single Sample**: 3,076 bytes (768 floats × 4 bytes + 4 bytes timestamp)
+ - **10 Samples**: ~30KB total in flash (NVS IDs 2-11)
+ - **RAM Usage**: Only 1 sample buffer (~3KB) + header (64 bytes) in RAM at a time
+-- **Total NVS**: 16KB (8 sectors × 2KB each)
++- **Total NVS**: ~46KB (23 sectors × 2KB each, actual partition is 47,104 bytes)
+ 
+ ## Boot Sequence
+ 
+@@ -199,8 +199,8 @@ Reinitializes the ML model. Training data in flash is **not erased** but will b
+ 
+ ## Memory Usage
+ 
+-- **Flash Code**: ~112KB (application + libraries)
+-- **Flash Storage**: 16KB (NVS partition for 10 samples)
++- **Flash Code**: 80KB (application + libraries)
++- **Flash Storage**: ~46KB (NVS partition for 10 samples)
+ - **RAM**: ~3.8KB (training_data header + current_sample buffer + ml_buffer)
+   - training_data struct: ~64 bytes (header only, no sample array)
+   - current_sample buffer: ~3,076 bytes (single sample)
