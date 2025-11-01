@@ -10,3 +10,22 @@ out/
 *.tmp
 *.bak
 *.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# PyInstaller
+*.spec
+scripts/build/
+scripts/dist/

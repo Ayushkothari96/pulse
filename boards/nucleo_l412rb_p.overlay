@@ -30,6 +30,35 @@
     
 };
 
+/* Flash partition for NVS storage */
+&flash0 {
+    /* Delete board's default storage_partition to avoid conflicts */
+    /delete-node/ partitions;
+    
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        /* 
+         * STM32L412 has 128KB flash (0x00000 - 0x1FFFF)
+         * Reserve last 48KB for NVS storage (10 samples + overhead)
+         * Application gets first 80KB
+         */
+        
+        /* Bootloader/application partition: 0x00000 - 0x13FFF (80KB) */
+        slot0_partition: partition@0 {
+            label = "image-0";
+            reg = <0x00000000 0x00014000>;  /* 80KB */
+        };
+
+        /* Storage partition: 0x14000 - 0x1FFFF (48KB, 2KB-aligned) */
+        storage_partition: partition@14000 {
+            label = "storage";
+            reg = <0x00014000 0x0000c000>;  /* 48KB = 24 sectors × 2KB */
+        };
+    };
+};
 
 &i2c3 { 
     status = "okay";

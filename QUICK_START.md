@@ -1,13 +1,13 @@
-# Quick Start - USB Shell Interface
+# Quick Start Guide - Pulse Predictive Maintenance Device
 
 ## What You Get
 
-A professional command-line interface over USB using Zephyr's built-in Shell:
-- ✅ Tab completion
-- ✅ Command history
-- ✅ Color terminal
-- ✅ Built-in help
-- ✅ Easy to extend
+A complete predictive maintenance system with:
+- ✅ Real-time anomaly detection using on-device ML
+- ✅ USB console with simple text commands
+- ✅ Professional GUI monitor application
+- ✅ Persistent training data storage in flash
+- ✅ Low power consumption for battery operation
 
 ## Build & Flash (3 commands)
 
@@ -17,144 +17,265 @@ west build -b nucleo_l412rb_p --pristine
 west flash
 ```
 
-## Connect & Test
+## Connect & Monitor
 
-**Option 1: PuTTY (Windows)**
-1. Download PuTTY: https://www.putty.org/
-2. Connection type: Serial
-3. Serial line: COM3 (check Device Manager)
-4. Speed: 115200
-5. Click "Open"
-6. Press Enter to see: `pulse:~$`
+**Option 1: GUI Monitor (Recommended)**
 
-**Option 2: Python Script**
+The easiest way to interact with your Pulse device:
+
 ```powershell
-python scripts\test_shell.py COM3
+cd scripts
+pip install -r requirements.txt
+python pulse_monitor.py
+
+# Or simply double-click: run_pulse_monitor.bat
 ```
 
-**Option 3: Linux/macOS**
+Features:
+- Real-time status display with color coding
+- Automatic device polling every 250ms
+- One-click commands (Reset, Status, Toggle Logs)
+- Live log viewer with dark theme
+- Similarity percentage monitoring
+
+**Option 2: Terminal (Advanced Users)**
+
+Connect directly to USB console:
+
+```powershell
+# Windows - Use PuTTY or Tera Term
+# Serial Port: COM3 (check Device Manager)
+# Baud Rate: 115200
+```
+
 ```bash
+# Linux/macOS
 screen /dev/ttyACM0 115200
 ```
 
-## Try These Commands
+## Available Commands
+
+The device accepts three simple commands via USB console:
 
 ```bash
-pulse:~$ help              # Show all commands
-pulse:~$ ml state          # Check ML state
-pulse:~$ ml info           # Detailed ML info
-pulse:~$ device            # Device information
-pulse:~$ accel             # Accelerometer info
-
-# Change ML mode
-pulse:~$ ml set 0          # Set to idle
-pulse:~$ ml set 1          # Set to training
-pulse:~$ ml set 2          # Set to inferencing
-
-# Use tab completion
-pulse:~$ ml <Tab>          # Shows: state, set, info
+STATUS    # Show device status, ML state, similarity %, flash storage
+RESET     # Clear ML model and training data, restart learning
+LOGS      # Toggle verbose logging on/off
 ```
 
-## Monitor Training
+### Using the GUI
 
-```bash
-pulse:~$ ml set 1
-ML state set to: training
+1. **Connect**: Select COM port and click "▶ Connect"
+2. **Status**: Displays automatically (updated every 250ms)
+3. **Start Learning**: Click "🔄 Reset & Learn" to train on normal machine operation
+4. **Monitor**: Watch the status indicator change colors:
+   - 🟢 **Green (NORMAL)**: Similarity ≥ 90% - Machine operating normally
+   - 🔴 **Red (ANOMALY)**: Similarity < 90% - Potential issue detected
+   - 🟠 **Orange (TRAINING)**: Currently learning normal patterns
+   - 🔵 **Blue (IDLE)**: Waiting to start
+5. **Toggle Logs**: Click "📝 Toggle Logs" to reduce/enable verbose output
 
-pulse:~$ ml state
-ML State: training (1)
-Training iteration: 15/40
+### Using Terminal Commands
 
-# Wait and check again...
-pulse:~$ ml state
-ML State: inferencing (2)
-Last similarity: 98%
+Type commands directly (case-insensitive):
+
+```
+STATUS
 ```
 
-## Monitor Anomalies
+Response:
+```
+=== PULSE DEVICE STATUS ===
+Device:      Pulse v1.0.0
+Board:       nucleo_l412rb_p
+Uptime:      123456 ms
 
-```bash
-pulse:~$ ml set 2
-ML state set to: inferencing
+ML State:    INFERENCING
+Training:    40/40 iterations
+Similarity:  95% (NORMAL)
 
-pulse:~$ ml info
-=== ML Information ===
-Current state:      inferencing
-Training iteration: 40/40
-Last similarity:    95%
-Status:             NORMAL
+Accel Rate:  500 Hz
+Accel Buf:   256 samples
 
-# If anomaly detected:
-Last similarity:    65%
-Status:             ANOMALY!
+Flash Store: 10/10 samples stored
+Flash CRC:   0x12345678
+===========================
 ```
 
-## Features
+## Testing Workflow
 
-- **Tab Completion**: Press Tab to autocomplete
-- **History**: Use ↑↓ arrows for command history
-- **Help**: Type `help` or `<command> --help`
-- **Colors**: Green for success, red for errors
-- **Shortcuts**: Ctrl+L (clear), Ctrl+A/E (line start/end)
+### Step 1: Prepare Your Machine
 
-## Implementation
+Choose a machine to monitor (motor, fan, pump, mixer, etc.) and mount the Pulse device securely on its body using double-sided tape or a bracket.
 
-This uses **Zephyr's built-in Shell** - no custom parsing code needed!
+### Step 2: Learn Normal Operation
 
-**Total code added**: ~150 lines of command handlers in `main.c`
+1. Start the machine in its normal, healthy operating state
+2. In the GUI, click **"🔄 Reset & Learn"** (or type `RESET` in terminal)
+3. Let it run for 20-30 seconds during training
+4. The device will automatically transition to monitoring mode
+5. Status will change from 🟠 TRAINING to 🟢 NORMAL
 
-**Shell handles**:
-- Command parsing
-- Tab completion
-- History management
-- Help system
-- Terminal control
-- Error handling
+**Important**: Only feed "normal" operation data during training!
 
-## Add Your Own Commands
+### Step 3: Monitor for Anomalies
 
-Super simple:
+The device now continuously monitors the machine:
+- **Similarity ≥ 90%**: Machine is operating normally (green)
+- **Similarity < 90%**: Potential issue detected (red)
 
-```c
-static int cmd_mycommand(const struct shell *sh, size_t argc, char **argv)
-{
-    shell_print(sh, "Hello from my command!");
-    return 0;
-}
+### Step 4: Test Anomaly Detection
 
-SHELL_CMD_REGISTER(mycommand, NULL, "My command help", cmd_mycommand);
+Simulate a fault to verify detection works:
+
+**Example: Fan Test**
+1. Train on a balanced, freely-spinning fan
+2. Partially obstruct airflow with paper
+3. Watch similarity drop and status turn red ⚠
+
+**Example: Motor Test**
+1. Train on smooth motor operation
+2. Add small weight (tape) to create imbalance
+3. Observe anomaly detection
+
+**Example: Mixer/Grinder**
+1. Train while running empty
+2. Add load (ice, beans, etc.)
+3. See immediate anomaly detection
+
+## Advanced Features
+
+### Persistent Training Data
+
+Training data is automatically saved to flash memory:
+- Stores up to 10 training samples
+- Survives power cycles
+- CRC-validated for integrity
+- Can be cleared with RESET command
+
+### Power Consumption Monitoring
+
+To measure battery life:
+1. Use a multimeter in series with power supply
+2. Measure current in different states:
+   - IDLE: ~5-10 mA
+   - TRAINING: ~15-20 mA
+   - INFERENCING: ~10-15 mA
+3. Calculate battery life: `Battery_mAh / Average_Current_mA = Hours`
+
+### Verbose Logging Control
+
+Reduce serial traffic to save power:
+- Click **"📝 Toggle Logs"** in GUI
+- Or type `LOGS` in terminal
+- When OFF: Only shows critical messages
+- Device still responds to all commands
+- Useful for production deployment
+
+## Creating a Portable Executable
+
+Build a standalone .exe for the GUI (no Python installation needed):
+
+```powershell
+cd scripts
+
+# Optional: Create custom icon
+python create_icon.py
+
+# Build the executable
+python build_exe.py
+
+# Output: dist\PulseMonitor.exe
 ```
 
-Rebuild, flash, and done!
+The .exe can be copied to any Windows PC and run directly. Perfect for:
+- Field testing
+- Sharing with colleagues
+- Customer demonstrations
+- Production use
 
 ## Documentation
 
-- **Complete Guide**: `USB_SHELL_GUIDE.md`
-- **Implementation Details**: `IMPLEMENTATION_SUMMARY.md`
-- **Zephyr Shell Docs**: https://docs.zephyrproject.org/latest/services/shell/index.html
+- **Main README**: `README.md` - Complete project documentation
+- **GUI Icon Guide**: `scripts/ICON_GUIDE.md` - Customize executable icon
+- **Hardware Issues**: `hardware/list_of_hardware_issues.txt`
+- **Product Requirements**: `prd/phm_device_prd.md`
+- **Flash Storage**: `docs/flash_storage.md`
 
 ## Troubleshooting
 
-**No prompt?**
-- Press Enter
-- Check baud rate: 115200
-- Check COM port is correct
+### GUI Issues
 
-**Commands not working?**
-- Enable line ending: LF or CR+LF
-- Try pressing Ctrl+C to reset
+**COM port not showing?**
+- Click "🔄 Refresh" button
+- Check Device Manager for COM port
+- Wait 2-3 seconds after plugging in device
 
-**Garbled text?**
-- Enable VT100/ANSI mode in terminal
-- Set UTF-8 encoding
+**"Cannot connect" error?**
+- Close other serial terminal programs
+- Try different USB port
+- Replug the device
+- Check COM port permissions (Linux: add user to dialout group)
 
-## Success!
+**GUI won't start?**
+- Install dependencies: `pip install -r requirements.txt`
+- Check Python version: 3.7 or later required
+- Try: `python --version`
 
-You should see:
+### Device Issues
+
+**Device not responding?**
+- Press reset button on Nucleo board
+- Power cycle the device
+- Reflash firmware: `west flash`
+
+**Training never completes?**
+- Ensure machine is running during training
+- Check accelerometer connection (I2C3: PC0/PC1)
+- Verify device logs for errors
+
+**High false positive rate?**
+- Retrain with more consistent "normal" data
+- Ensure mounting is secure (no vibration from mounting)
+- Increase similarity threshold in firmware
+
+**Similarity always 0% or 100%?**
+- ML model may not be properly trained
+- Run RESET command and retrain
+- Ensure accelerometer is detecting vibrations
+
+## Success Indicators
+
+You should see in the GUI:
+- ✅ Status: "🟠 TRAINING" during learning phase
+- ✅ Training iterations counting up
+- ✅ Automatic transition to "🟢 NORMAL"
+- ✅ Similarity values changing with machine state
+- ✅ Red "⚠ ANOMALY" when fault introduced
+
+Example successful session:
 ```
-pulse:~$ ml state
-ML State: training (1)
-Training iteration: 15/40
+[Connected to COM7]
+ML State: TRAINING
+Training iteration 1
+Training iteration 2
+...
+Training iteration 40
+Training complete - switching to inference
+ML State: INFERENCING
+Similarity: 97% (NORMAL)
+Similarity: 95% (NORMAL)
+Similarity: 42% (ANOMALY DETECTED!)
 ```
 
-Enjoy your professional USB interface! 🎉
+Congratulations! Your predictive maintenance system is working! 🎉
+
+## Next Steps
+
+1. **Test thoroughly** with various fault conditions
+2. **Determine optimal threshold** for your specific machine (default: 90%)
+3. **Measure power consumption** for battery life estimation
+4. **Build portable .exe** for field deployment
+5. **Read the full documentation** in README.md
+
+Ready to deploy in production! 🚀

@@ -1,13 +1,30 @@
-# Pulse Device - USB Shell Interface Guide
+# Pulse Device - USB Console Interface Guide
 
 ## Overview
 
-The Pulse device now uses **Zephyr's built-in Shell** over USB CDC-ACM for user interaction. This provides a professional command-line interface with:
-- ✅ Tab completion
-- ✅ Command history (arrow keys)
-- ✅ Built-in help system
-- ✅ Color support
-- ✅ Wildcards and auto-completion
+The Pulse device provides a **simple USB console** over USB CDC-ACM for user interaction and control. This guide covers both the command-line interface and the Python GUI monitor application.
+
+## Interface Options
+
+### Option 1: GUI Monitor (Recommended)
+
+A modern Python-based GUI application with:
+- ✅ Real-time status display with color coding
+- ✅ Automatic device polling (250ms)
+- ✅ One-click command buttons
+- ✅ Live log viewer
+- ✅ Similarity percentage monitoring
+- ✅ Portable .exe generation
+
+See the **GUI Monitor** section below for details.
+
+### Option 2: Terminal Console (Advanced)
+
+Direct USB serial connection for:
+- ✅ Manual command entry
+- ✅ Raw log viewing
+- ✅ Scripting and automation
+- ✅ Debugging
 
 ## Quick Start
 
@@ -45,107 +62,244 @@ minicom -D /dev/ttyACM0 -b 115200
 picocom -b 115200 /dev/ttyACM0
 ```
 
-## Available Commands
+---
 
-### Machine Learning Commands
+## GUI Monitor Application
 
-#### `ml state`
-Get the current ML state
+### Installation
 
+```powershell
+cd c:\development\zephyr\zephyrproject\pulse\scripts
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Run the application
+python pulse_monitor.py
+
+# Or double-click: run_pulse_monitor.bat
 ```
-pulse:~$ ml state
-ML State: training (1)
-Training iteration: 15/40
+
+### Features
+
+**Connection Panel**
+- Auto-detects available COM ports
+- One-click connect/disconnect
+- Refresh ports without restarting app
+
+**Status Display**
+- Large, color-coded status indicator
+- Real-time similarity percentage
+- ML state indication (Training/Inferencing/Idle)
+
+**Control Buttons**
+- 🔄 Reset & Learn: Clear model and start fresh training
+- 📋 Get Status: Manually request device status
+- 📝 Toggle Logs: Enable/disable verbose logging
+
+**Log Viewer**
+- Dark-themed console
+- Auto-scrolling
+- Real-time updates
+- Timestamps visible
+
+**Status Color Codes**
+- 🟢 Green "NORMAL": Similarity ≥ 90%
+- 🔴 Red "ANOMALY DETECTED!": Similarity < 90%
+- 🟠 Orange "TRAINING": Learning in progress
+- 🔵 Blue "IDLE": Waiting to start
+- ⚫ Gray "DISCONNECTED": Not connected
+
+### Creating Standalone Executable
+
+Build a portable .exe for distribution:
+
+```powershell
+cd scripts
+
+# Optional: Generate custom icon
+python create_icon.py
+
+# Build executable
+python build_exe.py
+
+# Output: dist\PulseMonitor.exe
 ```
 
-**States:**
-- `idle (0)` - Not processing data
-- `training (1)` - Learning normal behavior
-- `inferencing (2)` - Detecting anomalies
+The executable:
+- Works on any Windows PC
+- No Python installation required
+- Includes all dependencies
+- Can be copied and shared
+- ~10-15 MB file size
+
+See `scripts/ICON_GUIDE.md` for icon customization.
 
 ---
 
-#### `ml set <state>`
-Set the ML state
+## USB Console Commands
 
+The device accepts three simple text commands (case-insensitive):
+
+### `STATUS`
+
+Display complete device status and statistics.
+
+**Usage:**
 ```
-pulse:~$ ml set 2
-ML state set to: inferencing
-
-pulse:~$ ml set 0
-ML state set to: idle
+STATUS
 ```
 
-**Parameters:**
-- `0` - Set to idle
-- `1` - Set to training (resets iteration counter)
-- `2` - Set to inferencing
+**Example Output:**
+```
+=== PULSE DEVICE STATUS ===
+Device:      Pulse v1.0.0
+Board:       nucleo_l412rb_p
+Uptime:      123456 ms
+
+ML State:    INFERENCING
+Training:    40/40 iterations
+Similarity:  95% (NORMAL)
+
+Accel Rate:  500 Hz
+Accel Buf:   256 samples
+
+Flash Store: 10/10 samples stored
+Flash CRC:   0x12345678
+===========================
+```
+
+**Information Provided:**
+- Device identification and uptime
+- Current ML state (IDLE/TRAINING/INFERENCING)
+- Training progress (iteration count)
+- Last similarity percentage and status
+- Accelerometer configuration
+- Flash storage statistics
 
 ---
 
-#### `ml info`
-Get detailed ML information
+### `RESET`
 
+Reset the ML model and clear all training data, then automatically start fresh training.
+
+**Usage:**
 ```
-pulse:~$ ml info
-=== ML Information ===
-Current state:      inferencing
-Training iteration: 40/40
-Last similarity:    95%
-Status:             NORMAL
+RESET
 ```
 
-**Status interpretation:**
-- `NORMAL` - Similarity ≥ 90%
-- `WARNING` - Similarity 70-89%
-- `ANOMALY!` - Similarity < 70%
+**What it does:**
+1. Clears ML model from RAM
+2. Erases training data from flash
+3. Reinitializes NanoEdge AI library
+4. Automatically starts training mode
+5. Begins collecting new training samples
+
+**Example Output:**
+```
+RESETTING: ML model + training data...
+Cleared training data from RAM
+Cleared training data from flash
+Reinitializing ML model...
+SUCCESS: ML model reinitialized
+Training started automatically
+New training data will be collected and saved to flash
+Monitor progress with STATUS command
+```
+
+**When to use:**
+- Starting with a new machine
+- After machine maintenance/repair
+- When false positives are too high
+- To retrain with better baseline data
 
 ---
 
-### Device Commands
+### `LOGS`
 
-#### `device`
-Get device information
+Toggle verbose logging on/off to reduce serial traffic.
 
+**Usage:**
 ```
-pulse:~$ device
-=== Device Information ===
-Name:         Pulse
-Manufacturer: Kothari
-Version:      1.0.0
-Board:        nucleo_l412rb_p
-Uptime:       123456 ms
+LOGS
 ```
+
+**Output:**
+```
+Verbose logs ENABLED
+```
+or
+```
+Verbose logs DISABLED
+```
+
+**Behavior:**
+- **ON**: Shows all training iterations and similarity percentages
+- **OFF**: Only shows critical messages (errors, state transitions)
+- Device responds to all commands regardless of log state
+- Reduces serial bandwidth in production
+
+**When to use:**
+- Turn OFF for production deployment
+- Turn OFF to reduce power consumption
+- Turn ON for debugging and testing
+- Toggle dynamically without reboot
 
 ---
 
-#### `accel`
-Get accelerometer information
+## Command Examples
+
+### Basic Workflow
 
 ```
-pulse:~$ accel
-=== Accelerometer Information ===
-Sample rate:  500 Hz
-Buffer size:  256 samples
-Status:       running
+# Check device status
+STATUS
+
+# Start fresh training
+RESET
+
+# Monitor training progress
+STATUS
+(shows Training: 15/40 iterations)
+
+# Wait for training to complete...
+STATUS
+(shows ML State: INFERENCING)
+
+# Monitor anomaly detection
+STATUS
+(shows Similarity: 95% (NORMAL))
+
+# Reduce log verbosity
+LOGS
+(Verbose logs DISABLED)
+
+# Still get status updates
+STATUS
 ```
 
----
-
-### Built-in Shell Commands
-
-#### `help`
-Show all available commands
+### Testing Scenario
 
 ```
-pulse:~$ help
-Please press the <Tab> button to see all available commands.
-You can also use the <Tab> button to prompt or auto-complete all commands or its subcommands.
-You can try to call commands with <-h> or <--help> parameter for more information.
+# 1. Mount device on machine
+# 2. Start machine in normal operation
+# 3. Train the model
+RESET
 
-Shell supports following meta-keys:
-  Ctrl+a, Ctrl+b, Ctrl+c, Ctrl+d, Ctrl+e, Ctrl+f, Ctrl+k, Ctrl+l, Ctrl+n, Ctrl+p, Ctrl+u, Ctrl+w
-  Alt+b, Alt+f.
+# 4. Wait 20-30 seconds for training
+# 5. Check status
+STATUS
+
+# 6. Introduce a fault (obstruction, imbalance, etc.)
+# 7. Observe anomaly detection
+STATUS
+(shows Similarity: 42% (ANOMALY!))
+
+# 8. Remove fault
+# 9. Confirm recovery
+STATUS
+(shows Similarity: 96% (NORMAL))
+```
 ```
 
 #### `clear`
