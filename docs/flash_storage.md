@@ -45,8 +45,8 @@ This approach ensures:
 
 ```
 Flash Memory (128KB total)
-├─ Application Code (0x00000 - 0x1BFFF): ~112KB
-└─ Storage Partition (0x1C000 - 0x1FFFF): 16KB
+├─ Application Code (0x00000 - 0x13FFF): ~80KB
+└─ Storage Partition (0x14000 - 0x1FFFF): 48KB
    └─ NVS File System
       └─ Training Data (ID=1)
 ```

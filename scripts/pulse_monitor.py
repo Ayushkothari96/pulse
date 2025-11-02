@@ -4,8 +4,11 @@ import serial
 import serial.tools.list_ports
 import threading
 import queue
-import time
 import re
+
+# Similarity thresholds (must match firmware values in src/main.c)
+SIMILARITY_NORMAL_THRESHOLD = 90   # >= 90% = Normal operation
+SIMILARITY_WARNING_THRESHOLD = 70  # 70-89% = Warning, < 70% = Anomaly
 
 class PulseMonitorApp:
     def __init__(self, root):
@@ -224,6 +227,8 @@ class PulseMonitorApp:
                 self.ml_state = "INFERENCING"
             elif "IDLE" in line:
                 self.ml_state = "IDLE"
+            elif "ERROR" in line:
+                self.ml_state = "ERROR"
         
         # Parse Similarity score
         similarity_match = re.search(r'Similarity:\s+(\d+)%', line)
@@ -244,7 +249,7 @@ class PulseMonitorApp:
             self.similarity_label.config(text=f"Similarity: {self.last_similarity}%")
             
             if self.ml_state == "INFERENCING":
-                if self.last_similarity >= 90:
+                if self.last_similarity >= SIMILARITY_NORMAL_THRESHOLD:
                     self.update_status("✓ NORMAL", "#27ae60")
                 else:
                     self.update_status("⚠ ANOMALY DETECTED!", "#e74c3c")
@@ -252,6 +257,8 @@ class PulseMonitorApp:
                 self.update_status("🔄 TRAINING", "#f39c12")
             elif self.ml_state == "IDLE":
                 self.update_status("⏸ IDLE", "#3498db")
+            elif self.ml_state == "ERROR":
+                self.update_status("❌ DEVICE ERROR", "#c0392b")
         else:
             self.similarity_label.config(text="Similarity: N/A")
 

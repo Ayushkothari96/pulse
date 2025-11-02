@@ -29,6 +29,11 @@ static int __attribute__((constructor)) early_boot_test(void)
 #define ML_BUFFER_SIZE (256u)
 #define LEARNING_ITERATIONS (40u)
 
+/* Similarity thresholds for anomaly detection */
+#define SIMILARITY_NORMAL_THRESHOLD  90  /* >= 90% = Normal operation */
+#define SIMILARITY_WARNING_THRESHOLD 70  /* 70-89% = Warning */
+                                         /* < 70% = Anomaly */
+
 #define LED_PORT "GPIOB"  // Make sure the label is correct
 #define LED_PIN 4         // Ensure this pin exists on your board
 
@@ -39,7 +44,8 @@ static int __attribute__((constructor)) early_boot_test(void)
 enum ml_state {
     ML_STATE_IDLE,
     ML_STATE_TRAINING,
-    ML_STATE_INFERENCING
+    ML_STATE_INFERENCING,
+    ML_STATE_ERROR
 };
 
 /* Event flags for state machine */
@@ -174,9 +180,9 @@ static int nvs_storage_init(void)
         return rc;
     }
     
-    /* STM32L412 flash: Use 2KB sectors for NVS */
-    nvs.sector_size = 2048;  /* 2KB sectors (STM32L4 flash page size) */
-    nvs.sector_count = 24;   /* 24 sectors = 48KB total partition (for 10 samples + overhead) */
+    /* STM32L412 flash: Use detected sector size or default to 2KB */
+    nvs.sector_size = info.size;  /* Use detected sector size (typically 2KB for STM32L4) */
+    nvs.sector_count = 24;        /* 24 sectors = 48KB total partition (for 10 samples + overhead) */
     
     LOG_INF("NVS config: offset=0x%x, sector_size=%d, sector_count=%d, partition_size=%dKB",
             nvs.offset, nvs.sector_size, nvs.sector_count, 
@@ -200,11 +206,15 @@ static int nvs_storage_init(void)
  * @brief Calculate CRC32 of training header
  * @param data Pointer to training data structure
  * @return CRC32 value
+ * 
+ * CRC covers: magic (4), version (4), num_samples (4) = 12 bytes
+ * Does NOT cover: crc32 field itself, or reserved fields
  */
 static uint32_t calculate_training_data_crc(struct persistent_training_data *data)
 {
-    /* CRC only the header metadata, not samples (they're in separate NVS entries) */
-    return crc32_ieee((uint8_t *)&data->header.num_samples, sizeof(uint32_t));
+    /* CRC covers magic, version, and num_samples fields (12 bytes total) */
+    return crc32_ieee((uint8_t *)&data->header.magic, 
+                      offsetof(struct training_data_header, crc32));
 }
 
 /**
@@ -487,7 +497,7 @@ static void state_machine_step(uint32_t events)
                     
                     if (error_code == NEAI_MINIMAL_RECOMMENDED_LEARNING_DONE) {
                         // Training complete early - model already trained
-                        LOG_WRN("Model already trained! Power cycle to retrain from scratch.");
+                        LOG_WRN("Model already trained! Use RESET command or power cycle to retrain from scratch.");
                         current_state = ML_STATE_INFERENCING;
                         LOG_INF("Training complete (AI satisfied), entering inferencing");
                         
@@ -504,7 +514,7 @@ static void state_machine_step(uint32_t events)
                     } else {
                         // Error occurred
                         LOG_ERR("Training error: %d", error_code);
-                        current_state = ML_STATE_IDLE;
+                        current_state = ML_STATE_ERROR;
                     }
                 } else {
                     current_state = ML_STATE_INFERENCING;
@@ -546,8 +556,8 @@ static void state_machine_step(uint32_t events)
                 k_mutex_unlock(&ml_mutex);
             }
             if (events & EVT_ERROR) {
-                current_state = ML_STATE_IDLE;
-                LOG_ERR("Error in inferencing, entering idle state");
+                current_state = ML_STATE_ERROR;
+                LOG_ERR("Error in inferencing, entering error state");
             }
             break;
 
@@ -685,8 +695,8 @@ void main(void)
         
     if (error_code != NEAI_OK) {
         LOG_ERR("NanoEdge AI initialization failed, error code: %d", error_code);
-        LOG_ERR("System will continue in IDLE state without ML functionality");
-        current_state = ML_STATE_IDLE;
+        LOG_ERR("System will continue in ERROR state without ML functionality");
+        current_state = ML_STATE_ERROR;
     } else {
         LOG_INF("NanoEdge AI initialized successfully");
         
@@ -753,7 +763,7 @@ void main(void)
         LOG_ERR("Failed to initialize accelerometer");
         LOG_ERR("System will continue without accelerometer data");
         // Don't return - allow shell to work for debugging
-        current_state = ML_STATE_IDLE;
+        current_state = ML_STATE_ERROR;
     } else {
         accelerometer_start();
         accel_sample_rate = config.sample_rate_hz;
@@ -790,6 +800,7 @@ static const char *ml_state_to_string(enum ml_state state)
         case ML_STATE_IDLE: return "IDLE";
         case ML_STATE_TRAINING: return "TRAINING";
         case ML_STATE_INFERENCING: return "INFERENCING";
+        case ML_STATE_ERROR: return "ERROR";
         default: return "UNKNOWN";
     }
 }
@@ -811,9 +822,9 @@ static void cmd_status(void)
     
     if (similarity_valid) {
         printk("Similarity:  %d%%", last_similarity);
-        if (last_similarity >= 90) {
+        if (last_similarity >= SIMILARITY_NORMAL_THRESHOLD) {
             printk(" (NORMAL)\n");
-        } else if (last_similarity >= 70) {
+        } else if (last_similarity >= SIMILARITY_WARNING_THRESHOLD) {
             printk(" (WARNING)\n");
         } else {
             printk(" (ANOMALY!)\n");
