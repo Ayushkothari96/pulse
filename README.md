@@ -34,6 +34,7 @@ This project implements an intelligent engine monitoring system that:
 - [Getting Started](#-getting-started)
 - [Configuration](#-configuration)
 - [Building and Flashing](#-building-and-flashing)
+- [GUI Monitor Application](#-gui-monitor-application)
 - [Usage](#-usage)
 - [Architecture](#-architecture)
 - [Troubleshooting](#-troubleshooting)
@@ -130,7 +131,12 @@ pulse/
 │       ├── libneai.a                # NanoEdge AI precompiled library
 │       └── NanoEdgeAI.h             # NanoEdge AI API header
 ├── scripts/
-│   ├── build_all.bat                # Build script
+│   ├── pulse_monitor.py             # Python GUI monitoring application
+│   ├── build_exe.py                 # Build standalone .exe from GUI
+│   ├── create_icon.py               # Generate icon for .exe
+│   ├── run_pulse_monitor.bat        # Quick launcher for GUI
+│   ├── requirements.txt             # Python dependencies
+│   ├── build_all.bat                # Firmware build script
 │   └── build_dfu.bat                # DFU build script
 ├── src/
 │   ├── main.c                       # Main application with ML state machine
@@ -210,6 +216,21 @@ west flash
 
 ### 6. Monitor Output
 
+**Option A: Using the GUI Monitor (Recommended)**
+
+```bash
+# Install Python dependencies
+cd scripts
+pip install -r requirements.txt
+
+# Run the GUI monitor
+python pulse_monitor.py
+
+# Or double-click: run_pulse_monitor.bat
+```
+
+**Option B: Using Terminal**
+
 Connect to the USB CDC serial port:
 
 ```bash
@@ -219,6 +240,66 @@ sudo screen /dev/ttyACM0 115200
 # Windows (use PuTTY, Tera Term, or similar)
 # Connect to COMx port at any baud rate (CDC ignores baud rate)
 ```
+
+---
+
+## 🖥️ GUI Monitor Application
+
+### Features
+
+The Pulse Monitor GUI provides a modern interface for device interaction:
+
+- **Real-time Status Display**: Color-coded status indicator (Normal/Anomaly/Training/Idle)
+- **Automatic Polling**: Updates device status every 250ms
+- **Similarity Monitoring**: Shows current similarity percentage
+- **Command Controls**:
+  - Reset & Start Learning
+  - Get Status
+  - Toggle Verbose Logs
+- **Live Log Viewer**: Dark-themed console with real-time device logs
+- **Professional UI**: Modern design with intuitive controls
+
+### Quick Start
+
+```powershell
+cd c:\development\zephyr\zephyrproject\pulse\scripts
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the GUI
+python pulse_monitor.py
+
+# Or simply double-click: run_pulse_monitor.bat
+```
+
+### Creating a Standalone Executable
+
+Build a portable .exe that works on any Windows PC (no Python required):
+
+```powershell
+cd scripts
+
+# Generate a custom icon (optional)
+python create_icon.py
+
+# Build the executable
+python build_exe.py
+
+# Output: dist\PulseMonitor.exe
+```
+
+See [scripts/ICON_GUIDE.md](scripts/ICON_GUIDE.md) for icon customization options.
+
+### Supported Commands
+
+The device accepts the following USB console commands:
+
+| Command | Description |
+|---------|-------------|
+| `STATUS` | Display full device status and statistics |
+| `RESET` | Reset ML model and start fresh training |
+| `LOGS` | Toggle verbose logging on/off |
 
 ---
 
@@ -346,6 +427,17 @@ INFERENCING: Monitor similarity %
 Alert if similarity < threshold
 ```
 
+### Testing with Real Devices
+
+You can test the Pulse device with various machinery:
+
+1. **PC Cooling Fan**: Attach device to fan casing, run learning during normal operation, then partially obstruct airflow to trigger anomaly
+2. **Electric Motor**: Mount on motor body, learn during steady-state, introduce imbalance with tape on shaft
+3. **Kitchen Mixer/Grinder**: Secure to appliance body, learn while empty/idle, detect load changes when grinding
+4. **Washing Machine**: Place on machine during normal spin cycle, detect unbalanced loads
+
+See the testing guide for detailed procedures and best practices.
+
 ### Example Output
 
 ```
@@ -356,9 +448,19 @@ Alert if similarity < threshold
 [00:00:05.234] <inf> main: Training iteration 2
 ...
 [00:01:23.456] <inf> main: Training complete (max iterations), entering inferencing
-[00:01:24.567] <inf> main: Similarity: 95
-[00:01:25.678] <inf> main: Similarity: 92
-[00:01:26.789] <inf> main: Similarity: 45  <- Potential anomaly!
+[00:01:24.567] <inf> main: Similarity: 95%  <- Normal operation
+[00:01:25.678] <inf> main: Similarity: 92%  <- Normal operation
+[00:01:26.789] <inf> main: Similarity: 45%  <- ⚠ Anomaly detected!
+```
+
+### USB Console Commands
+
+Type commands directly into the USB serial console or use the GUI:
+
+```
+STATUS    - Show device status, ML state, similarity, and flash storage info
+RESET     - Clear ML model and training data, start fresh learning
+LOGS      - Toggle verbose logging (reduces serial traffic when OFF)
 ```
 
 ---

@@ -104,12 +104,22 @@ static void accel_thread(void *p1, void *p2, void *p3)
 int accelerometer_init(const struct accel_config *config)
 {
     if (!config || !config->data_ready_cb) {
+        LOG_ERR("Invalid config or callback");
         return -EINVAL;
     }
 
+    LOG_INF("Getting accelerometer device...");
     i2c_dev = DEVICE_DT_GET(DT_ALIAS(accel0));
+    
+    if (i2c_dev == NULL) {
+        LOG_ERR("Accelerometer device is NULL - check device tree");
+        return -ENODEV;
+    }
+    
+    LOG_INF("Accelerometer device: %s", i2c_dev->name);
+    
     if (!device_is_ready(i2c_dev)) {
-        LOG_ERR("Accelerometer device not ready");
+        LOG_ERR("Accelerometer device not ready: %s", i2c_dev->name);
         return -ENODEV;
     }
 
