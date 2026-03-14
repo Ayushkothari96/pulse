@@ -5,7 +5,6 @@ out/
 *.obj
 *.so
 *.dll
-*.exe
 *.log
 *.tmp
 *.bak

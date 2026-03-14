@@ -1,473 +1,177 @@
-# Pulse
+# Pulse ⚡
 
-An embedded machine learning system for real-time engine vibration analysis and anomaly detection using STMicroelectronics NanoEdge AI on STM32L412RB.
+> Real-time vibration anomaly detection on a microcontroller — no cloud, no subscription, no IT team required.
 
 [![Zephyr RTOS](https://img.shields.io/badge/Zephyr-3.x-blue.svg)](https://www.zephyrproject.org/)
 [![Platform](https://img.shields.io/badge/Platform-STM32L412RB-green.svg)](https://www.st.com/en/microcontrollers-microprocessors/stm32l4-series.html)
+[![TinyML](https://img.shields.io/badge/ML-NanoEdge%20AI-orange.svg)](https://www.st.com/en/development-tools/nanoedgeaistudio.html)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🎯 Overview
+---
 
-This project implements an intelligent engine monitoring system that:
-- ✅ Collects 3-axis accelerometer data at 500 Hz
-- ✅ Learns normal vibration patterns during training phase
-- ✅ Detects anomalies in real-time during inference
-- ✅ Uses STMicroelectronics NanoEdge AI for embedded ML
-- ✅ Runs on Zephyr RTOS for reliability and performance
+## The Problem
 
-### Key Features
+Motors, fans, pumps, and compressors fail. They always give warnings — subtle changes in vibration — but nobody catches them until it's too late and the machine has already broken down.
 
-- **Real-time Anomaly Detection**: Uses machine learning to identify abnormal engine behavior
-- **On-device Learning**: Train the ML model directly on the embedded device
-- **Low Resource Footprint**: Optimized for resource-constrained MCUs (40KB RAM)
-- **USB Data Logging**: Stream results over USB CDC for monitoring and debugging
-- **Thread-safe Design**: Double buffering and mutex-protected critical sections
-- **Production Ready**: Comprehensive error handling and fault diagnostics
+Enterprise predictive maintenance systems exist, but they cost tens of thousands of dollars, require stable internet connectivity, and need a dedicated IT team to run. Small factories, workshops, and facilities simply go without.
+
+**Pulse is a $15 device that changes that.**
 
 ---
 
-## 📋 Table of Contents
+## What Pulse Does
 
-- [Hardware Requirements](#-hardware-requirements)
-- [Software Requirements](#-software-requirements)
-- [Project Structure](#-project-structure)
-- [Getting Started](#-getting-started)
-- [Configuration](#-configuration)
-- [Building and Flashing](#-building-and-flashing)
-- [GUI Monitor Application](#-gui-monitor-application)
-- [Usage](#-usage)
-- [Architecture](#-architecture)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [License](#-license)
+Pulse is a palm-sized embedded device that:
+
+1. **Learns** what your machine's normal vibration feels like (takes ~30 seconds)
+2. **Monitors** continuously in real-time using on-device machine learning
+3. **Alerts** the moment vibration patterns deviate from normal
+
+No internet. No cloud. No subscription. Everything runs on a 40KB RAM microcontroller.
+
+Mount it on any vibrating surface. Press reset to train. Walk away. Pulse watches so you don't have to.
 
 ---
 
-## 🔧 Hardware Requirements
+## Demo
 
-### Required Components
+> 📹 **Video coming soon** — Currently testing on an air purifier fan. Anomaly triggered by tapping the unit during inference is detected within one inference cycle (~600ms).
 
-- **Microcontroller**: STM32L412RB Nucleo board (NUCLEO-L412RB-P)
-  - ARM Cortex-M4F @ 80 MHz
-  - 128 KB Flash
-  - 40 KB SRAM
-  - FPU support (hardware floating-point)
-  
-- **Accelerometer**: LIS2DH12 3-axis MEMS accelerometer
-  - I2C interface
-  - ±2g/±4g/±8g/±16g selectable scale
-  - Connected to I2C3 (PC0=SCL, PC1=SDA)
-  - I2C address: 0x18
-
-### Wiring Diagram
-
+**Live output during anomaly detection:**
 ```
-STM32L412RB          LIS2DH12
------------          --------
-PC0 (I2C3_SCL) ----> SCL
-PC1 (I2C3_SDA) ----> SDA
-3.3V           ----> VDD
-GND            ----> GND
+[00:01:23.456] Similarity: 95%  ✅ Normal
+[00:01:24.067] Similarity: 93%  ✅ Normal
+[00:01:24.678] Similarity: 41%  ⚠️  ANOMALY DETECTED
+[00:01:25.289] Similarity: 38%  ⚠️  ANOMALY DETECTED
+[00:01:25.900] Similarity: 91%  ✅ Normal (disturbance passed)
 ```
 
-### Optional Components
+**GUI Monitor:**
 
-- USB cable (for power, programming, and data logging)
-- ST-Link debugger (built-in on Nucleo board)
+The Python-based GUI shows live similarity scores, color-coded status (green = normal, red = anomaly), and a real-time log — all over USB without any additional hardware.
 
 ---
 
-## 💻 Software Requirements
+## Real World Applications
 
-### Development Environment
+Pulse can monitor anything that vibrates:
 
-1. **Zephyr RTOS**: v3.x or later
-   - [Installation Guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
+| Application | What to Detect |
+|---|---|
+| Electric motors | Bearing wear, shaft imbalance, winding faults |
+| Industrial fans / air purifiers | Blade damage, obstruction, motor degradation |
+| Pumps | Cavitation, misalignment, impeller damage |
+| CNC spindles | Tool wear, chatter, abnormal cutting forces |
+| Washing machines | Unbalanced loads, drum bearing failure |
+| HVAC compressors | Refrigerant issues, mechanical wear |
+| PC cooling systems | Fan bearing failure, dust buildup |
 
-2. **Toolchain**: 
-   - ARM GNU Toolchain (GCC)
-   - Recommended: Zephyr SDK
-
-3. **Build Tools**:
-   - CMake (>= 3.20.0)
-   - Ninja or Make
-   - West (Zephyr's meta-tool)
-
-4. **IDE** (Optional):
-   - VS Code with Cortex-Debug extension
-   - STM32CubeIDE
-
-### NanoEdge AI Library
-
-This project requires the NanoEdge AI library from STMicroelectronics:
-
-1. Visit [NanoEdge AI Studio](https://www.st.com/en/development-tools/nanoedgeaistudio.html)
-2. Create a project with these parameters:
-   - **Type**: Anomaly Detection
-   - **Sensor**: 3-axis accelerometer
-   - **Sampling Rate**: 500 Hz
-   - **Signal Length**: 256 samples per axis (768 total values)
-   - **Target**: STM32 (ARM Cortex-M4F)
-
-3. Export the library and place files in `lib/nanoedge_ai/`:
-   - `libneai.a` (precompiled library)
-   - `NanoEdgeAI.h` (header file)
-   - Update `KNOWLEDGE_BUFFER_SIZE` in `src/main.c` based on your model
+If it vibrates and has a surface you can attach a sensor to, Pulse can learn it and watch it.
 
 ---
 
-## 📁 Project Structure
+## How It Works
 
-```
-pulse/
-├── boards/
-│   └── nucleo_l412rb_p.overlay      # Device tree overlay for board configuration
-├── hardware/
-│   └── list_of_hardware_issues.txt  # Known hardware issues and fixes
-├── inc/
-│   └── accelerometer.h              # Accelerometer driver API
-├── lib/
-│   └── nanoedge_ai/
-│       ├── libneai.a                # NanoEdge AI precompiled library
-│       └── NanoEdgeAI.h             # NanoEdge AI API header
-├── scripts/
-│   ├── pulse_monitor.py             # Python GUI monitoring application
-│   ├── build_exe.py                 # Build standalone .exe from GUI
-│   ├── create_icon.py               # Generate icon for .exe
-│   ├── run_pulse_monitor.bat        # Quick launcher for GUI
-│   ├── requirements.txt             # Python dependencies
-│   ├── build_all.bat                # Firmware build script
-│   └── build_dfu.bat                # DFU build script
-├── src/
-│   ├── main.c                       # Main application with ML state machine
-│   └── accelerometer.c              # LIS2DH12 driver implementation
-├── .vscode/
-│   ├── launch.json                  # Cortex-Debug configuration
-│   └── settings.json                # VS Code workspace settings
-├── CMakeLists.txt                   # Build configuration
-├── prj.conf                         # Zephyr project configuration
-├── neai_overlay.ld                  # Linker script for NanoEdge AI memory
-├── west.yml                         # West manifest
-├── start_zephyr_env.bat             # Environment setup script
-└── README.md                        # This file
-```
+Pulse uses **STMicroelectronics NanoEdge AI** — a library that runs a trained anomaly detection model entirely on the STM32L412RB microcontroller. There is no external processor, no cloud inference, and no network dependency.
 
----
+### Boot Flow
 
-## 🚀 Getting Started
-
-### 1. Clone the Repository
-
-```bash
-cd c:/development/zephyr/zephyrproject/
-git clone https://github.com/Ayushkothari96/pulse.git
-cd pulse
-```
-
-### 2. Install Dependencies
-
-Ensure Zephyr SDK and tools are installed:
-
-```bash
-# Install Zephyr dependencies (Ubuntu/Debian)
-sudo apt install --no-install-recommends git cmake ninja-build gperf \
-  ccache dfu-util device-tree-compiler wget \
-  python3-dev python3-pip python3-setuptools python3-tk python3-wheel \
-  xz-utils file make gcc gcc-multilib g++-multilib libsdl2-dev
-
-# Install West
-pip3 install --user west
-
-# Initialize Zephyr workspace (if not already done)
-west init ~/zephyrproject
-cd ~/zephyrproject
-west update
-west zephyr-export
-pip3 install --user -r ~/zephyrproject/zephyr/scripts/requirements.txt
-```
-
-### 3. Setup NanoEdge AI Library
-
-1. Download and install [NanoEdge AI Studio](https://www.st.com/en/development-tools/nanoedgeaistudio.html)
-2. Create a new Anomaly Detection project
-3. Import your training data (see `pulse-logger` for data collection)
-4. Benchmark and select the best model
-5. Export the library for STM32 ARM Cortex-M4F
-6. Copy `libneai.a` and `NanoEdgeAI.h` to `lib/nanoedge_ai/`
-7. Update `KNOWLEDGE_BUFFER_SIZE` in `src/main.c` (check your exported README)
-
-### 4. Build the Project
-
-```bash
-# On Windows
-start_zephyr_env.bat
-west build -b nucleo_l412rb_p
-
-# On Linux/Mac
-cd ~/zephyrproject/pulse
-west build -b nucleo_l412rb_p
-```
-
-### 5. Flash to Board
-
-```bash
-west flash
-```
-
-### 6. Monitor Output
-
-**Option A: Using the GUI Monitor (Recommended)**
-
-```bash
-# Install Python dependencies
-cd scripts
-pip install -r requirements.txt
-
-# Run the GUI monitor
-python pulse_monitor.py
-
-# Or double-click: run_pulse_monitor.bat
-```
-
-**Option B: Using Terminal**
-
-Connect to the USB CDC serial port:
-
-```bash
-# Linux
-sudo screen /dev/ttyACM0 115200
-
-# Windows (use PuTTY, Tera Term, or similar)
-# Connect to COMx port at any baud rate (CDC ignores baud rate)
-```
-
----
-
-## 🖥️ GUI Monitor Application
-
-### Features
-
-The Pulse Monitor GUI provides a modern interface for device interaction:
-
-- **Real-time Status Display**: Color-coded status indicator (Normal/Anomaly/Training/Idle)
-- **Automatic Polling**: Updates device status every 250ms
-- **Similarity Monitoring**: Shows current similarity percentage
-- **Command Controls**:
-  - Reset & Start Learning
-  - Get Status
-  - Toggle Verbose Logs
-- **Live Log Viewer**: Dark-themed console with real-time device logs
-- **Professional UI**: Modern design with intuitive controls
-
-### Quick Start
-
-```powershell
-cd c:\development\zephyr\zephyrproject\pulse\scripts
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the GUI
-python pulse_monitor.py
-
-# Or simply double-click: run_pulse_monitor.bat
-```
-
-### Creating a Standalone Executable
-
-Build a portable .exe that works on any Windows PC (no Python required):
-
-```powershell
-cd scripts
-
-# Generate a custom icon (optional)
-python create_icon.py
-
-# Build the executable
-python build_exe.py
-
-# Output: dist\PulseMonitor.exe
-```
-
-See [scripts/ICON_GUIDE.md](scripts/ICON_GUIDE.md) for icon customization options.
-
-### Supported Commands
-
-The device accepts the following USB console commands:
-
-| Command | Description |
-|---------|-------------|
-| `STATUS` | Display full device status and statistics |
-| `RESET` | Reset ML model and start fresh training |
-| `LOGS` | Toggle verbose logging on/off |
-
----
-
-## ⚙️ Configuration
-
-### Key Configuration Options
-
-Edit `prj.conf` to customize:
-
-```properties
-# Logging Level (0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG)
-CONFIG_LOG_DEFAULT_LEVEL=3
-
-# Accelerometer Sample Rate (modify in src/main.c)
-# Default: 500 Hz
-
-# Main Stack Size
-CONFIG_MAIN_STACK_SIZE=2048
-
-# Heap Size
-CONFIG_HEAP_MEM_POOL_SIZE=2048
-
-# Enable/Disable MPU
-CONFIG_ARM_MPU=n  # Disabled for debugging
-```
-
-### NanoEdge AI Configuration
-
-In `src/main.c`, configure:
-
-```c
-// Knowledge buffer size (from your NanoEdge AI export)
-#define KNOWLEDGE_BUFFER_SIZE 4096  // Update this!
-
-// Accelerometer sample rate
-struct accel_config config = {
-    .sample_rate_hz = 500,  // Adjust as needed
-    .data_ready_cb = data_ready_handler
-};
-```
-
----
-
-## 🔨 Building and Flashing
-
-### Build Commands
-
-```bash
-# Clean build
-west build -b nucleo_l412rb_p --pristine
-
-# Incremental build
-west build
-
-# Build with menuconfig
-west build -t menuconfig
-
-# Build for debugging
-west build -- -DCONFIG_DEBUG=y
-```
-
-### Flashing Commands
-
-```bash
-# Flash via ST-Link
-west flash
-
-# Flash specific file
-west flash --hex-file build/zephyr/zephyr.hex
-
-# Erase flash before programming
-west flash --erase
-```
-
-### Debugging
-
-Using VS Code with Cortex-Debug:
-
-1. Open project in VS Code
-2. Press `F5` to start debugging
-3. Set breakpoints as needed
-4. Use Debug Console for GDB commands
-
----
-
-## 📖 Usage
-
-### System Operation Modes
-
-The system operates in three states:
-
-#### 1. **IDLE State**
-- Waiting for initialization
-- No ML processing
-- Occurs on startup errors
-
-#### 2. **TRAINING State**
-- Learning normal vibration patterns
-- Collects 20+ samples (configurable)
-- Automatically transitions to INFERENCING when complete
-- **Important**: Only feed "normal" engine data during training!
-
-#### 3. **INFERENCING State**
-- Real-time anomaly detection
-- Outputs similarity percentage (0-100%)
-  - **100%** = Completely normal (identical to training data)
-  - **0%** = Completely abnormal (anomaly detected)
-- Typical threshold: < 80% indicates potential issue
-
-### Workflow
+One of Pulse's most important features is **persistent training data**. Training samples are saved to onboard flash (NVS) as they are collected, and reloaded automatically on every boot. This means once Pulse has learned your machine, it remembers — even after a power cycle.
 
 ```
 Power On
    ↓
-Initialize NanoEdge AI
+Initialize NVS flash storage
    ↓
-Start Accelerometer (500 Hz)
+Check flash for previously saved training samples
+   ├── Samples found (with valid CRC32)?
+   │      ↓
+   │   Reconstruct ML model from stored samples
+   │      ↓
+   │   Enough iterations? → Jump straight to INFERENCING
+   │   Not enough?        → Resume TRAINING from where it left off
+   │
+   └── No samples found (first boot or after RESET)
+          ↓
+       Start fresh TRAINING
    ↓
-TRAINING: Feed 20 "normal" samples
+Initialize NanoEdge AI engine
    ↓
-Automatic transition
+Start LIS2DH12 accelerometer @ 500 Hz
    ↓
-INFERENCING: Monitor similarity %
+TRAINING: Collect samples of normal vibration
+   │   Each sample saved to flash immediately (up to 10 stored)
+   │   Automatic transition when model is satisfied
    ↓
-Alert if similarity < threshold
+INFERENCING: Compare live vibration to learned baseline
+   ↓
+Output similarity score every ~600ms
+   ↓
+Alert if similarity drops below threshold
 ```
 
-### Testing with Real Devices
+### Flash Storage Design
 
-You can test the Pulse device with various machinery:
+Training samples are stored using Zephyr's **NVS (Non-Volatile Storage)** filesystem directly in internal flash. Key design decisions from the code:
 
-1. **PC Cooling Fan**: Attach device to fan casing, run learning during normal operation, then partially obstruct airflow to trigger anomaly
-2. **Electric Motor**: Mount on motor body, learn during steady-state, introduce imbalance with tape on shaft
-3. **Kitchen Mixer/Grinder**: Secure to appliance body, learn while empty/idle, detect load changes when grinding
-4. **Washing Machine**: Place on machine during normal spin cycle, detect unbalanced loads
+- Up to **10 training samples** persisted (each 768 floats = ~3KB)
+- Each sample split into **2 chunks** to fit NVS write limits
+- Header protected by **CRC32** (covers magic number, version, and sample count)
+- On boot, header is validated before any samples are loaded — corrupted or incompatible data is safely discarded
+- **RESET command** clears both RAM state and the flash header atomically
 
-See the testing guide for detailed procedures and best practices.
+This means Pulse survives power loss during training and picks up where it left off.
 
-### Example Output
+### Similarity Score
 
-```
-[00:00:01.234] <inf> main: NanoEdge AI initialized successfully
-[00:00:01.456] <inf> main: Current state: 1 (TRAINING)
-[00:00:02.789] <inf> accel: LIS2DH12 accelerometer initialized
-[00:00:03.012] <inf> main: Training iteration 1
-[00:00:05.234] <inf> main: Training iteration 2
-...
-[00:01:23.456] <inf> main: Training complete (max iterations), entering inferencing
-[00:01:24.567] <inf> main: Similarity: 95%  <- Normal operation
-[00:01:25.678] <inf> main: Similarity: 92%  <- Normal operation
-[00:01:26.789] <inf> main: Similarity: 45%  <- ⚠ Anomaly detected!
-```
-
-### USB Console Commands
-
-Type commands directly into the USB serial console or use the GUI:
-
-```
-STATUS    - Show device status, ML state, similarity, and flash storage info
-RESET     - Clear ML model and training data, start fresh learning
-LOGS      - Toggle verbose logging (reduces serial traffic when OFF)
-```
+| Score | Meaning |
+|---|---|
+| **≥ 90%** | Normal — vibration matches learned baseline |
+| **70–89%** | Warning — noticeable deviation, watch closely |
+| **< 70%** | Anomaly — significant change detected |
 
 ---
 
-## 🏗️ Architecture
+## Key Technical Features
 
-### System Architecture
+- **On-device Learning**: Train directly on the hardware — no PC, no data upload, no model training pipeline
+- **Persistent Training Memory**: Training samples saved to internal flash via Zephyr NVS — Pulse remembers what it learned across power cycles, with CRC32-validated header for data integrity
+- **Smart Boot Recovery**: On startup, Pulse reloads stored samples and reconstructs the ML model automatically — if enough data exists, it skips straight to inferencing without retraining
+- **Real-time Inference**: Full inference cycle under 600ms end-to-end
+- **3-axis Accelerometer**: Captures vibration in X, Y, Z simultaneously at 500 Hz
+- **Three-level Alerting**: Normal (≥90%), Warning (70–89%), and Anomaly (<70%) thresholds for nuanced monitoring
+- **Thread-safe Design**: Double buffering with mutex-protected critical sections between sensor thread and ML thread
+- **Zephyr RTOS**: Production-grade multithreading, deterministic scheduling, fault isolation
+- **USB CDC Shell**: Interact with the device over USB — no additional programmer or debugger needed after initial flash
+- **Python GUI Monitor**: Real-time visualization of similarity scores and device state
+- **Minimal BOM**: STM32L412RB Nucleo + LIS2DH12 accelerometer module — under $15 total
+
+---
+
+## Hardware
+
+### Required Components
+
+| Component | Details | Approx Cost |
+|---|---|---|
+| STM32L412RB Nucleo | ARM Cortex-M4F @ 80MHz, 128KB Flash, 40KB SRAM | ~$12 |
+| LIS2DH12 breakout | 3-axis MEMS accelerometer, I2C | ~$2 |
+| USB cable | For power, flashing, and serial communication | — |
+
+**Total BOM: ~$14**
+
+### Wiring
+
+```
+STM32L412RB Nucleo       LIS2DH12
+──────────────────       ────────
+PC0 (I2C3_SCL)    ──→   SCL
+PC1 (I2C3_SDA)    ──→   SDA
+3.3V              ──→   VDD
+GND               ──→   GND
+```
+
+### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -477,193 +181,241 @@ LOGS      - Toggle verbose logging (reduces serial traffic when OFF)
 │  └──────────────┘      └──────────────────────┘    │
 │         ▲                                            │
 │         │ Events (EVT_DATA_READY)                    │
-│         │                                            │
 └─────────┼────────────────────────────────────────────┘
-          │
           │ Callback
-          │
 ┌─────────┼────────────────────────────────────────────┐
 │         ▼                                            │
 │  ┌──────────────┐      ┌──────────────────────┐    │
-│  │ Accel Thread │◄────►│ LIS2DH12 Sensor      │    │
-│  │ (500 Hz)     │      │ (I2C3)               │    │
+│  │ Accel Thread │◄────►│ LIS2DH12 @ 500Hz     │    │
+│  │ Double Buffer│      │ (I2C3)               │    │
 │  └──────────────┘      └──────────────────────┘    │
-│                                                      │
-│       Accelerometer Driver                           │
+└──────────────────────────────────────────────────────┘
+          │ USB CDC
+┌─────────┼────────────────────────────────────────────┐
+│         ▼                                            │
+│   Python GUI Monitor / Serial Terminal               │
 └──────────────────────────────────────────────────────┘
 ```
 
-### Data Flow
-
-1. **Accelerometer Thread** (500 Hz):
-   - Reads sensor via I2C3
-   - Fills double buffer (256 samples)
-   - Calls callback when buffer full
-   - **Thread-safe**: Uses mutex for buffer access
-
-2. **Main Thread**:
-   - Receives event from callback
-   - Copies data to ML buffer (interleaved format)
-   - Processes with NanoEdge AI
-   - Logs results
-
-3. **Double Buffering**:
-   - Buffer A: Being filled by sensor
-   - Buffer B: Being processed by ML
-   - Prevents data corruption during processing
-
-### Memory Layout
+### Memory Footprint
 
 ```
-Flash (128 KB):
-├── Application Code        (~40 KB)
-├── NanoEdge AI Library     (~30 KB)
-├── Zephyr RTOS             (~50 KB)
-└── Free Space              (~8 KB)
-
-RAM (40 KB):
-├── Main Stack              (2 KB)
-├── Accel Thread Stack      (1 KB)
-├── ML Buffer (768 floats)  (3 KB)
-├── Accel Buffers (2×768)   (6 KB)
-├── Knowledge Buffer        (4-8 KB, model-specific)
-├── Zephyr Kernel           (~10 KB)
-└── Heap                    (2 KB)
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### 1. **MemManage Fault at 0x80111A4**
-
-**Symptom**: Crash during `neai_anomalydetection_init()`
-
-**Cause**: Missing or incorrectly sized knowledge buffer
-
-**Solution**:
-```c
-// In src/main.c, ensure you have:
-#define KNOWLEDGE_BUFFER_SIZE 4096  // Check your NanoEdge AI README!
-static uint8_t knowledge_buffer[KNOWLEDGE_BUFFER_SIZE] __attribute__((aligned(4)));
-```
-
-#### 2. **Accelerometer Not Found**
-
-**Symptom**: `Accelerometer device not ready`
-
-**Cause**: I2C connection or device tree issue
-
-**Solution**:
-- Verify wiring (PC0=SCL, PC1=SDA)
-- Check I2C address (0x18)
-- Verify device tree overlay is loaded
-
-#### 3. **USB Serial Not Appearing**
-
-**Symptom**: No COM port visible
-
-**Cause**: USB CDC not initialized
-
-**Solution**:
-- Check `CONFIG_USB_DEVICE_STACK=y` in prj.conf
-- Verify USB D+/D- connections (PA11/PA12)
-- Try different USB cable
-- Wait 2-3 seconds after power-on
-
-#### 4. **Stack Overflow**
-
-**Symptom**: `STACK CHECK FAIL`
-
-**Cause**: Insufficient stack size
-
-**Solution**:
-```properties
-# In prj.conf
-CONFIG_MAIN_STACK_SIZE=2048  # Increase if needed
-```
-
-#### 5. **Build Errors with NanoEdge AI**
-
-**Symptom**: Linker errors about `knowledge_buffer`
-
-**Cause**: Custom linker script not loaded
-
-**Solution**:
-- Ensure `neai_overlay.ld` exists
-- Check `zephyr_linker_sources()` in CMakeLists.txt
-
----
-
-## 📊 Performance
-
-### Resource Usage
-
 | Resource | Usage | Total | Percentage |
 |----------|-------|-------|------------|
 | Flash    | ~70 KB | 128 KB | ~55% |
 | SRAM     | ~25 KB | 40 KB | ~62% |
 | CPU (avg)| ~30% | 80 MHz | - |
+```
 
-### Timing Characteristics
+### Performance
 
-- **Sample Collection**: 256 samples @ 500 Hz = 512 ms
-- **ML Inference Time**: ~10-50 ms (model-dependent)
-- **Training Time**: ~20-30 seconds (20 iterations)
-- **End-to-end Latency**: < 600 ms per decision
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow Zephyr coding style
-- Add comments for complex logic
-- Test on hardware before submitting
-- Update documentation for API changes
+| Metric | Value |
+|---|---|
+| Sample rate | 500 Hz (3-axis) |
+| Samples per inference window | 256 per axis (768 total) |
+| Sample collection time | 512 ms |
+| ML inference time | 10–50 ms |
+| End-to-end latency | < 600 ms |
+| Training time | ~30 seconds (20 iterations) |
+| Flash usage | ~55% (70KB / 128KB) |
+| RAM usage | ~62% (25KB / 40KB) |
 
 ---
 
-## 📝 License
+## Software Setup
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Prerequisites
+
+- [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/getting_started/index.html) v3.x
+- CMake >= 3.20
+- West (Zephyr meta-tool)
+- Python 3.x (for GUI monitor)
+- NanoEdge AI Studio account (free, from ST)
+
+### 1. Clone
+
+```bash
+git clone https://github.com/Ayushkothari96/pulse.git
+cd pulse
+```
+
+### 2. Get NanoEdge AI Library
+
+Pulse uses ST's NanoEdge AI for on-device ML. You need to generate a library for your specific use case:
+
+1. Visit [NanoEdge AI Studio](https://www.st.com/en/development-tools/nanoedgeaistudio.html) (free ST account required)
+2. Create a new **Anomaly Detection** project with:
+   - Sensor: 3-axis accelerometer
+   - Sampling rate: 500 Hz
+   - Signal length: 256 samples per axis
+   - Target: STM32 ARM Cortex-M4F
+3. Benchmark and export the library
+4. Place `libneai.a` and `NanoEdgeAI.h` in `lib/nanoedge_ai/`
+5. Update `KNOWLEDGE_BUFFER_SIZE` in `src/main.c` to match your export
+
+### 3. Build
+
+```bash
+# Windows
+start_zephyr_env.bat
+west build -b nucleo_l412rb_p
+
+# Linux / macOS
+west build -b nucleo_l412rb_p
+```
+
+### 4. Flash
+
+```bash
+west flash
+```
+
+### 5. Run the GUI Monitor
+
+```bash
+cd scripts
+pip install -r requirements.txt
+python pulse_monitor.py
+```
+
+Or on Windows, double-click `run_pulse_monitor.bat`.
 
 ---
 
-## 🙏 Acknowledgments
+## Using Pulse
 
-- **STMicroelectronics** for NanoEdge AI Studio and libraries
-- **Zephyr Project** for the excellent RTOS
-- **ARM** for Cortex-M4F architecture
+### Three Operating States
+
+**IDLE** — Startup or error state. No ML processing.
+
+**TRAINING** — Pulse is learning your machine's normal vibration. Place the device on the machine, let it run normally, and wait ~30 seconds. Feed only normal operation data during this phase. Pulse transitions automatically to INFERENCING when complete.
+
+**INFERENCING** — Pulse is actively monitoring. Similarity scores update every ~600ms. A score below 80% indicates an anomaly.
+
+### USB Console Commands
+
+Connect via any serial terminal (PuTTY, Tera Term, screen) or use the GUI:
+
+```
+STATUS   Show current ML state, similarity score, and system info
+RESET    Wipe learned model and restart training from scratch
+LOGS     Toggle verbose logging (useful for reducing serial traffic)
+```
+
+### Mounting Tips
+
+- Mount the device **directly on the vibrating surface** — not nearby, directly on it
+- Use double-sided tape or a rubber band for temporary mounting
+- Keep the device **still during training** — any handling will pollute the baseline
+- For best results, mount in the same orientation each time
 
 ---
 
-## 📧 Contact
+## Project Status & Honest Limitations
 
-**Ayush Kothari** - [@Ayushkothari96](https://github.com/Ayushkothari96)
+This is a weekend project built by a single embedded engineer. Here is where things actually stand:
 
-Project Link: [https://github.com/Ayushkothari96/pulse](https://github.com/Ayushkothari96/pulse)
+- ✅ Firmware stable and working on NUCLEO-L412RB-P
+- ✅ Anomaly detection validated on air purifier fan (normal operation vs physical disturbance)
+- ✅ GUI monitor working on Windows
+- ✅ On-device learning working reliably
+- ⚠️ Not yet tested on heavy industrial machinery (motors, pumps, CNC)
+- ⚠️ NanoEdge AI library requires a free ST account to generate
+- ⚠️ Linux/macOS build path not fully tested
+- ⚠️ Anomaly threshold (80%) is a starting point — real-world tuning may be needed per machine
+- 🔜 Hardware enclosure / 3D printable case (planned)
+- 🔜 Standalone battery-powered operation (planned)
+- 🔜 BLE alert output (planned)
 
 ---
 
-## 📚 Additional Resources
+## Get Involved
 
-- [NanoEdge AI Studio Documentation](https://wiki.st.com/stm32mcu/wiki/AI:NanoEdge_AI_Studio)
-- [Zephyr Documentation](https://docs.zephyrproject.org/)
-- [STM32L4 Reference Manual](https://www.st.com/resource/en/reference_manual/rm0394-stm32l41xxx42xxx43xxx44xxx45xxx46xxx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf)
-- [LIS2DH12 Datasheet](https://www.st.com/resource/en/datasheet/lis2dh12.pdf)
+I am an embedded engineer building this on weekends because I think low-cost predictive maintenance is a real unsolved problem — especially for small manufacturers who cannot afford enterprise IoT solutions.
+
+If you:
+- Work in manufacturing, maintenance, or industrial IoT and want to test this on real machinery
+- Are an embedded engineer with experience in Zephyr, STM32, or TinyML
+- Want to port this to a different board or sensor
+- Have ideas, feedback, or use cases I haven't thought of
+
+**Open an issue or reach out.** Real-world testing feedback is the most valuable thing this project needs right now.
 
 ---
 
-**⭐ If you find this project helpful, please consider giving it a star!**
+## Project Structure
+
+```
+pulse/
+├── boards/
+│   └── nucleo_l412rb_p.overlay      # Device tree overlay
+├── inc/
+│   └── accelerometer.h              # Accelerometer driver API
+├── lib/
+│   └── nanoedge_ai/
+│       ├── libneai.a                # NanoEdge AI library (generate via Studio)
+│       └── NanoEdgeAI.h             # NanoEdge AI header
+├── scripts/
+│   ├── pulse_monitor.py             # Python GUI monitor
+│   ├── requirements.txt             # Python dependencies
+│   └── run_pulse_monitor.bat        # Windows launcher
+├── src/
+│   ├── main.c                       # ML state machine + application logic
+│   └── accelerometer.c              # LIS2DH12 I2C driver
+├── CMakeLists.txt
+├── prj.conf                         # Zephyr config
+├── neai_overlay.ld                  # Custom linker script for NanoEdge AI
+└── west.yml
+```
+
+---
+
+## Troubleshooting
+
+### MemManage Fault during `neai_anomalydetection_init()`
+Knowledge buffer size mismatch. Check `KNOWLEDGE_BUFFER_SIZE` in `src/main.c` — it must match the value in your NanoEdge AI export README exactly.
+
+```c
+#define KNOWLEDGE_BUFFER_SIZE 4096  // ← update this from your NanoEdge AI export
+static uint8_t knowledge_buffer[KNOWLEDGE_BUFFER_SIZE] __attribute__((aligned(4)));
+```
+
+### Accelerometer not found
+Check I2C wiring (PC0=SCL, PC1=SDA) and verify the device tree overlay is being loaded. I2C address should be 0x18.
+
+### No USB COM port appearing
+Wait 2-3 seconds after power-on. Check `CONFIG_USB_DEVICE_STACK=y` in `prj.conf`. Try a different USB cable — some cables are power-only.
+
+### Stack overflow (`STACK CHECK FAIL`)
+Increase stack sizes in `prj.conf`: `CONFIG_MAIN_STACK_SIZE=2048` or higher.
+
+### Linker errors about `knowledge_buffer`
+Ensure `neai_overlay.ld` exists and `zephyr_linker_sources()` is correctly called in `CMakeLists.txt`.
+
+---
+
+## Acknowledgments
+
+- [STMicroelectronics](https://www.st.com) for NanoEdge AI Studio and the STM32 ecosystem
+- [Zephyr Project](https://www.zephyrproject.org/) for an excellent embedded RTOS
+- [ARM](https://www.arm.com) for the Cortex-M4F architecture
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## Contact
+
+**Ayush Kothari** — [@Ayushkothari96](https://github.com/Ayushkothari96)
+
+Project: [https://github.com/Ayushkothari96/pulse](https://github.com/Ayushkothari96/pulse)
+
+Linkdin: [https://www.linkedin.com/in/ayushkothari96](https://www.linkedin.com/in/ayushkothari96)
+
+---
+
+*Built on weekends. Tested on an air purifier. Meant for the real world.*
