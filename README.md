@@ -25,13 +25,15 @@ Enterprise predictive maintenance systems exist, but they cost tens of thousands
 
 Pulse is a palm-sized embedded device that:
 
-1. **Learns** what your machine's normal vibration feels like (takes ~30 seconds)
-2. **Monitors** continuously in real-time using on-device machine learning
-3. **Alerts** the moment vibration patterns deviate from normal
+1. **Learns** what your machine's normal vibration feels like 
+   (takes ~30 seconds)
+2. **Monitors** continuously in real-time using on-device 
+   machine learning
+3. **Alerts** the moment vibration patterns deviate from normal 
+   — onboard buzzer and LED trigger instantly, no laptop required
 
-No internet. No cloud. No subscription. Everything runs on a 40KB RAM microcontroller.
-
-Mount it on any vibrating surface. Press reset to train. Walk away. Pulse watches so you don't have to.
+No internet. No cloud. No subscription. Mount it, train it, 
+walk away. Pulse watches so you don't have to.
 
 ---
 
