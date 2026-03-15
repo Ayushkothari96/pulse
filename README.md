@@ -147,26 +147,26 @@ This means Pulse survives power loss during training and picks up where it left 
 
 ## Hardware
 
-### Required Components
+Pulse runs on a **custom designed PCB** integrating the STM32L412 
+and LIS2DH12 into a compact form factor designed to mount directly 
+on machinery.
 
-| Component | Details | Approx Cost |
-|---|---|---|
-| STM32L412RB Nucleo | ARM Cortex-M4F @ 80MHz, 128KB Flash, 40KB SRAM | ~$12 |
-| LIS2DH12 breakout | 3-axis MEMS accelerometer, I2C | ~$2 |
-| USB cable | For power, flashing, and serial communication | — |
+![Pulse Custom PCB](assets/images/PulsePCB.jpeg)
 
-**Total BOM: ~$14**
+- Designed in **EasyEDA**
+- Manufactured via **JLCPCB**
+- Schematic available in `hardware/` folder
+- Gerber files coming soon — open an issue if you want to 
+  build your own and I will prioritize the export
 
-### Wiring
+### Components
 
-```
-STM32L412RB Nucleo       LIS2DH12
-──────────────────       ────────
-PC0 (I2C3_SCL)    ──→   SCL
-PC1 (I2C3_SDA)    ──→   SDA
-3.3V              ──→   VDD
-GND               ──→   GND
-```
+| Component | Details |
+|---|---|
+| MCU | STM32L412 — ARM Cortex-M4F @ 80MHz, 40KB SRAM |
+| Accelerometer | LIS2DH12 — 3-axis MEMS, I2C |
+| Connector | USB Mini-B for power and data |
+| Reset + Boot | Onboard tactile buttons |
 
 ### Architecture
 
