@@ -37,16 +37,13 @@ Mount it on any vibrating surface. Press reset to train. Walk away. Pulse watche
 
 > 📹 **Video coming soon** — Currently testing on an air purifier fan. Anomaly triggered by tapping the unit during inference is detected within one inference cycle (~600ms).
 
-**Live output during anomaly detection:**
-```
-[00:01:23.456] Similarity: 95%  ✅ Normal
-[00:01:24.067] Similarity: 93%  ✅ Normal
-[00:01:24.678] Similarity: 41%  ⚠️  ANOMALY DETECTED
-[00:01:25.289] Similarity: 38%  ⚠️  ANOMALY DETECTED
-[00:01:25.900] Similarity: 91%  ✅ Normal (disturbance passed)
-```
-
 **GUI Monitor:**
+
+![Normal Data Visualization](assets/images/Normality.png)
+
+![Anomaly Detection Result](assets/images/Anomaly.png)
+
+![Hardware Test Setup](assets/images/TestSetup.jpeg)
 
 The Python-based GUI shows live similarity scores, color-coded status (green = normal, red = anomaly), and a real-time log — all over USB without any additional hardware.
 
