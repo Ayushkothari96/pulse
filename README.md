@@ -9,6 +9,8 @@
 
 ---
 
+![Pulse running on air purifier](assets/images/TestSetup.jpeg)
+
 ## The Problem
 
 Motors, fans, pumps, and compressors fail. They always give warnings — subtle changes in vibration — but nobody catches them until it's too late and the machine has already broken down.
@@ -42,8 +44,6 @@ Mount it on any vibrating surface. Press reset to train. Walk away. Pulse watche
 ![Normal Data Visualization](assets/images/Normality.png)
 
 ![Anomaly Detection Result](assets/images/Anomaly.png)
-
-![Hardware Test Setup](assets/images/TestSetup.jpeg)
 
 The Python-based GUI shows live similarity scores, color-coded status (green = normal, red = anomaly), and a real-time log — all over USB without any additional hardware.
 
