@@ -144,6 +144,9 @@ This means Pulse survives power loss during training and picks up where it left 
 - **USB CDC Shell**: Interact with the device over USB — no additional programmer or debugger needed after initial flash
 - **Python GUI Monitor**: Real-time visualization of similarity scores and device state
 - **Minimal BOM**: STM32L412RB Nucleo + LIS2DH12 accelerometer module — under $15 total
+- **Standalone Alerting**: Onboard buzzer and LED trigger on 
+  anomaly detection — no laptop or GUI required for basic 
+  deployment
 
 ---
 
