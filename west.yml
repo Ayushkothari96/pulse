@@ -5,12 +5,5 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      revision: main
+      revision: v4.1.0
       import: true
-    - name: mcuboot
-      remote: zephyrproject-rtos
-      revision: main
-      path: bootloader/mcuboot
-    - name: pulse
-      url: .
-      path: pulse
