@@ -422,7 +422,6 @@ Run `west update` before building to fetch the pinned Zephyr v4.1.0 revision.
 - [STMicroelectronics](https://www.st.com) for NanoEdge AI Studio and the STM32 ecosystem
 - [Zephyr Project](https://www.zephyrproject.org/) for an excellent embedded RTOS
 - [ARM](https://www.arm.com) for the Cortex-M4F architecture
-- The r/embedded community for invaluable feedback and real-world deployment insights
 
 ---
 
