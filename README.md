@@ -2,7 +2,7 @@
 
 > Real-time vibration anomaly detection on a microcontroller — no cloud, no subscription, no IT team required.
 
-[![Zephyr RTOS](https://img.shields.io/badge/Zephyr-3.x-blue.svg)](https://www.zephyrproject.org/)
+[![Zephyr RTOS](https://img.shields.io/badge/Zephyr-4.1.0-blue.svg)](https://www.zephyrproject.org/)
 [![Platform](https://img.shields.io/badge/Platform-STM32L412RB-green.svg)](https://www.st.com/en/microcontrollers-microprocessors/stm32l4-series.html)
 [![TinyML](https://img.shields.io/badge/ML-NanoEdge%20AI-orange.svg)](https://www.st.com/en/development-tools/nanoedgeaistudio.html)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -25,15 +25,11 @@ Enterprise predictive maintenance systems exist, but they cost tens of thousands
 
 Pulse is a palm-sized embedded device that:
 
-1. **Learns** what your machine's normal vibration feels like 
-   (takes ~30 seconds)
-2. **Monitors** continuously in real-time using on-device 
-   machine learning
-3. **Alerts** the moment vibration patterns deviate from normal 
-   — onboard buzzer and LED trigger instantly, no laptop required
+1. **Learns** what your machine's normal vibration feels like (takes ~30 seconds)
+2. **Monitors** continuously in real-time using on-device machine learning
+3. **Alerts** the moment vibration patterns deviate from normal — onboard buzzer and LED trigger instantly, no laptop required
 
-No internet. No cloud. No subscription. Mount it, train it, 
-walk away. Pulse watches so you don't have to.
+No internet. No cloud. No subscription. Mount it, train it, walk away. Pulse watches so you don't have to.
 
 ---
 
@@ -136,6 +132,7 @@ This means Pulse survives power loss during training and picks up where it left 
 - **On-device Learning**: Train directly on the hardware — no PC, no data upload, no model training pipeline
 - **Persistent Training Memory**: Training samples saved to internal flash via Zephyr NVS — Pulse remembers what it learned across power cycles, with CRC32-validated header for data integrity
 - **Smart Boot Recovery**: On startup, Pulse reloads stored samples and reconstructs the ML model automatically — if enough data exists, it skips straight to inferencing without retraining
+- **Standalone Alerting**: Onboard buzzer and LED trigger on anomaly detection — no laptop or GUI required for basic deployment
 - **Real-time Inference**: Full inference cycle under 600ms end-to-end
 - **3-axis Accelerometer**: Captures vibration in X, Y, Z simultaneously at 500 Hz
 - **Three-level Alerting**: Normal (≥90%), Warning (70–89%), and Anomaly (<70%) thresholds for nuanced monitoring
@@ -143,26 +140,20 @@ This means Pulse survives power loss during training and picks up where it left 
 - **Zephyr RTOS**: Production-grade multithreading, deterministic scheduling, fault isolation
 - **USB CDC Shell**: Interact with the device over USB — no additional programmer or debugger needed after initial flash
 - **Python GUI Monitor**: Real-time visualization of similarity scores and device state
-- **Minimal BOM**: STM32L412RB Nucleo + LIS2DH12 accelerometer module — under $15 total
-- **Standalone Alerting**: Onboard buzzer and LED trigger on 
-  anomaly detection — no laptop or GUI required for basic 
-  deployment
+- **Minimal BOM**: STM32L412 + LIS2DH12 on custom PCB — under $15 total
 
 ---
 
 ## Hardware
 
-Pulse runs on a **custom designed PCB** integrating the STM32L412 
-and LIS2DH12 into a compact form factor designed to mount directly 
-on machinery.
+Pulse runs on a **custom designed PCB** integrating the STM32L412 and LIS2DH12 into a compact form factor designed to mount directly on machinery.
 
 ![Pulse Custom PCB](assets/images/PulsePCB.jpeg)
 
 - Designed in **EasyEDA**
 - Manufactured via **JLCPCB**
 - Schematic available in `hardware/` folder
-- Gerber files coming soon — open an issue if you want to 
-  build your own and I will prioritize the export
+- Gerber files coming soon — open an issue if you want to build your own and I will prioritize the export
 
 ### Components
 
@@ -172,6 +163,17 @@ on machinery.
 | Accelerometer | LIS2DH12 — 3-axis MEMS, I2C |
 | Connector | USB Mini-B for power and data |
 | Reset + Boot | Onboard tactile buttons |
+
+### Wiring
+
+```
+STM32L412RB          LIS2DH12
+-----------          --------
+PC0 (I2C3_SCL) ──→  SCL
+PC1 (I2C3_SDA) ──→  SDA
+3.3V           ──→  VDD
+GND            ──→  GND
+```
 
 ### Architecture
 
@@ -201,13 +203,11 @@ on machinery.
 
 ### Memory Footprint
 
-```
 | Resource | Usage | Total | Percentage |
-|----------|-------|-------|------------|
-| Flash    | ~70 KB | 128 KB | ~55% |
-| SRAM     | ~25 KB | 40 KB | ~62% |
-| CPU (avg)| ~30% | 80 MHz | - |
-```
+|---|---|---|---|
+| Flash | ~70 KB | 128 KB | ~55% |
+| SRAM | ~25 KB | 40 KB | ~62% |
+| CPU (avg) | ~30% | 80 MHz | — |
 
 ### Performance
 
@@ -228,7 +228,7 @@ on machinery.
 
 ### Prerequisites
 
-- [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/getting_started/index.html) v3.x
+- [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/getting_started/index.html) v4.1.0 (pinned — see west.yml)
 - CMake >= 3.20
 - West (Zephyr meta-tool)
 - Python 3.x (for GUI monitor)
@@ -241,7 +241,13 @@ git clone https://github.com/Ayushkothari96/pulse.git
 cd pulse
 ```
 
-### 2. Get NanoEdge AI Library
+### 2. Initialize Zephyr Workspace
+
+```bash
+west update
+```
+
+### 3. Get NanoEdge AI Library
 
 Pulse uses ST's NanoEdge AI for on-device ML. You need to generate a library for your specific use case:
 
@@ -255,7 +261,7 @@ Pulse uses ST's NanoEdge AI for on-device ML. You need to generate a library for
 4. Place `libneai.a` and `NanoEdgeAI.h` in `lib/nanoedge_ai/`
 5. Update `KNOWLEDGE_BUFFER_SIZE` in `src/main.c` to match your export
 
-### 3. Build
+### 4. Build
 
 ```bash
 # Windows
@@ -266,13 +272,13 @@ west build -b nucleo_l412rb_p
 west build -b nucleo_l412rb_p
 ```
 
-### 4. Flash
+### 5. Flash
 
 ```bash
 west flash
 ```
 
-### 5. Run the GUI Monitor
+### 6. Run the GUI Monitor
 
 ```bash
 cd scripts
@@ -292,7 +298,7 @@ Or on Windows, double-click `run_pulse_monitor.bat`.
 
 **TRAINING** — Pulse is learning your machine's normal vibration. Place the device on the machine, let it run normally, and wait ~30 seconds. Feed only normal operation data during this phase. Pulse transitions automatically to INFERENCING when complete.
 
-**INFERENCING** — Pulse is actively monitoring. Similarity scores update every ~600ms. A score below 80% indicates an anomaly.
+**INFERENCING** — Pulse is actively monitoring. Similarity scores update every ~600ms. A score below 70% indicates an anomaly.
 
 ### USB Console Commands
 
@@ -309,6 +315,8 @@ LOGS     Toggle verbose logging (useful for reducing serial traffic)
 - Mount the device **directly on the vibrating surface** — not nearby, directly on it
 - Use double-sided tape or a rubber band for temporary mounting
 - Keep the device **still during training** — any handling will pollute the baseline
+- Power Pulse on **after the machine reaches steady state** — not during startup
+- Power Pulse off **before shutting the machine down** — not during spindown
 - For best results, mount in the same orientation each time
 
 ---
@@ -321,13 +329,19 @@ This is a weekend project built by a single embedded engineer. Here is where thi
 - ✅ Anomaly detection validated on air purifier fan (normal operation vs physical disturbance)
 - ✅ GUI monitor working on Windows
 - ✅ On-device learning working reliably
+- ✅ Flash persistence with CRC32 validation working
+- ✅ Custom PCB designed and manufactured
 - ⚠️ Not yet tested on heavy industrial machinery (motors, pumps, CNC)
 - ⚠️ NanoEdge AI library requires a free ST account to generate
 - ⚠️ Linux/macOS build path not fully tested
-- ⚠️ Anomaly threshold (80%) is a starting point — real-world tuning may be needed per machine
-- 🔜 Hardware enclosure / 3D printable case (planned)
-- 🔜 Standalone battery-powered operation (planned)
-- 🔜 BLE alert output (planned)
+- ⚠️ Random environmental interference not fully solved — longer training windows help but don't eliminate false alarms
+- ⚠️ Single baseline model — variable speed machinery not well supported in current version
+- 🔜 Trend tracking — detect gradual degradation over time
+- 🔜 Pulse Static variant — pre-trained model with FFT mode detection for variable speed machinery
+- 🔜 Hardware enclosure / 3D printable case
+- 🔜 Standalone battery-powered operation
+- 🔜 BLE alert output
+- 🔜 Gerber files export
 
 ---
 
@@ -349,8 +363,12 @@ If you:
 
 ```
 pulse/
+├── assets/
+│   └── images/                      # Project photos and screenshots
 ├── boards/
 │   └── nucleo_l412rb_p.overlay      # Device tree overlay
+├── hardware/
+│   └── schematic.pdf                # PCB schematic
 ├── inc/
 │   └── accelerometer.h              # Accelerometer driver API
 ├── lib/
@@ -367,7 +385,7 @@ pulse/
 ├── CMakeLists.txt
 ├── prj.conf                         # Zephyr config
 ├── neai_overlay.ld                  # Custom linker script for NanoEdge AI
-└── west.yml
+└── west.yml                         # Pinned to Zephyr v4.1.0
 ```
 
 ---
@@ -394,6 +412,9 @@ Increase stack sizes in `prj.conf`: `CONFIG_MAIN_STACK_SIZE=2048` or higher.
 ### Linker errors about `knowledge_buffer`
 Ensure `neai_overlay.ld` exists and `zephyr_linker_sources()` is correctly called in `CMakeLists.txt`.
 
+### Build errors after cloning
+Run `west update` before building to fetch the pinned Zephyr v4.1.0 revision.
+
 ---
 
 ## Acknowledgments
@@ -416,7 +437,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 Project: [https://github.com/Ayushkothari96/pulse](https://github.com/Ayushkothari96/pulse)
 
-Linkdin: [https://www.linkedin.com/in/ayushkothari96](https://www.linkedin.com/in/ayushkothari96)
+LinkedIn: [https://www.linkedin.com/in/ayushkothari96](https://www.linkedin.com/in/ayushkothari96)
 
 ---
 
